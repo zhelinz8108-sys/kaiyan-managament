@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>凯燕环球中心</title>
+    <link rel="stylesheet" href="/economics/styles.css" />
+  </head>
+  <body>
+    <main class="economics-shell">
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="kicker">Owner Console</p>
+          <h1 id="propertyName">加载中...</h1>
+          <p class="hero-meta" id="periodLabel">正在汇总房间收益、固定成本与经营表现</p>
+        </div>
+        <div class="hero-actions">
+          <a class="nav-link" href="/economics/">后台首页</a>
+          <button id="clearFiltersButton" class="secondary-button" type="button">重置筛选</button>
+          <button id="refreshButton" class="refresh-button">刷新分析</button>
+        </div>
+      </header>
+
+      <section class="summary-grid">
+        <article class="summary-card">
+          <span>全年收益</span>
+          <strong id="totalRevenue">--</strong>
+          <small>房间收益端汇总</small>
+        </article>
+        <article class="summary-card">
+          <span>全年固定成本</span>
+          <strong id="totalFixedCost">--</strong>
+          <small>房租、保洁、维修、水电等</small>
+        </article>
+        <article class="summary-card">
+          <span>毛利 / 毛亏</span>
+          <strong id="grossProfit">--</strong>
+          <small id="profitabilityTag">--</small>
+        </article>
+        <article class="summary-card">
+          <span>盈利房间数</span>
+          <strong id="profitableRooms">--</strong>
+          <small id="lossRooms">--</small>
+        </article>
+      </section>
+
+      <section class="mode-strip">
+        <article class="mode-card">
+          <span>日租收益</span>
+          <strong id="dailyRevenue">--</strong>
+        </article>
+        <article class="mode-card">
+          <span>短租收益</span>
+          <strong id="shortStayRevenue">--</strong>
+        </article>
+        <article class="mode-card">
+          <span>长租收益</span>
+          <strong id="longStayRevenue">--</strong>
+        </article>
+        <article class="mode-card">
+          <span>最佳房间 / 最弱房间</span>
+          <strong id="bestWorst">--</strong>
+          <small id="bestWorstMeta">--</small>
+        </article>
+      </section>
+
+      <section class="legend-row">
+        <div class="legend-item"><span class="legend-swatch swatch-daily"></span>日租</div>
+        <div class="legend-item"><span class="legend-swatch swatch-short"></span>短租</div>
+        <div class="legend-item"><span class="legend-swatch swatch-long"></span>长租</div>
+        <div class="legend-item"><span class="legend-swatch swatch-idle"></span>空置 / 无收益</div>
+      </section>
+
+      <section class="workspace">
+        <aside class="control-rail">
+          <section class="filter-card">
+          <p class="kicker">Owner Filters</p>
+          <h2>筛选视图</h2>
+
+            <label class="field">
+              <span>搜索房间</span>
+              <input id="roomSearch" class="text-input" type="search" placeholder="房号、房型、经营结构" />
+            </label>
+
+            <div class="field">
+              <span>盈亏筛选</span>
+              <div class="chip-grid" id="profitFilters"></div>
+            </div>
+
+            <div class="field">
+              <span>经营模式</span>
+              <div class="chip-grid" id="modeFilters"></div>
+            </div>
+
+            <label class="field">
+              <span>楼层</span>
+              <select id="floorSelect" class="select-input">
+                <option value="ALL">全部楼层</option>
+              </select>
+            </label>
+
+            <div class="field">
+              <span>房型</span>
+              <div class="chip-grid" id="typeFilters"></div>
+            </div>
+
+            <label class="field">
+              <span>排序方式</span>
+              <select id="sortSelect" class="select-input">
+                <option value="room_no_asc">按楼层 / 房号</option>
+                <option value="floor_desc">按高楼层优先</option>
+                <option value="gross_profit_desc">按毛利从高到低</option>
+                <option value="gross_profit_asc">按毛利从低到高</option>
+                <option value="revenue_desc">按收益从高到低</option>
+                <option value="margin_desc">按毛利率从高到低</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="watch-card">
+          <p class="kicker">Owner Watch</p>
+          <h2>经营提示</h2>
+            <div class="watch-stack">
+              <div class="watch-item">
+                <span>亏损房间</span>
+                <strong id="watchLoss">--</strong>
+              </div>
+              <div class="watch-item">
+                <span>空置窗口</span>
+                <strong id="watchIdle">--</strong>
+              </div>
+              <div class="watch-item">
+                <span>薄利房间</span>
+                <strong id="watchThin">--</strong>
+              </div>
+              <div class="watch-item">
+                <span>混合经营</span>
+                <strong id="watchMixed">--</strong>
+              </div>
+            </div>
+            <p class="watch-note" id="watchNote">正在生成经营提示。</p>
+          </section>
+        </aside>
+
+        <section class="ledger-card">
+          <div class="ledger-header">
+            <div>
+              <p class="kicker">Asset Ledger</p>
+              <h2>房间利润台账</h2>
+              <p class="ledger-copy">以单房为单位对比收益、固定成本、经营结构和毛利，方便直接找到表现最好与最差的房间。</p>
+            </div>
+            <span class="ledger-meta" id="roomListMeta">--</span>
+          </div>
+
+          <div class="table-head">
+            <span>房间</span>
+            <span>经营结构</span>
+            <span>全年收益</span>
+            <span>固定成本</span>
+            <span>毛利 / 毛亏</span>
+            <span>操作</span>
+          </div>
+
+          <div class="room-list" id="roomList"></div>
+        </section>
+      </section>
+    </main>
+
+    <aside class="detail-drawer" id="detailDrawer" aria-hidden="true">
+      <div class="drawer-card">
+        <button class="drawer-close" id="drawerClose" type="button" aria-label="关闭">×</button>
+        <div class="drawer-header">
+          <p class="kicker">Asset Detail</p>
+          <h3 id="drawerTitle">房间详情</h3>
+          <p class="drawer-copy" id="drawerSubtitle">点击房间后查看完整收益、成本与经营明细。</p>
+        </div>
+        <div class="drawer-content" id="drawerContent"></div>
+      </div>
+    </aside>
+
+    <script type="module" src="/economics/app.js"></script>
+  </body>
+</html>

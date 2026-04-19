@@ -1,0 +1,360 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum SourceSystem {
+  WEB_ADMIN
+  WEB_FRONTDESK
+  IOS_FRONTDESK_APP
+  MINI_PROGRAM
+  OTA
+  PMS
+  PAYMENT_GATEWAY
+  ERP
+  DEVICE_GATEWAY
+}
+
+enum RoomStatus {
+  VACANT_CLEAN
+  VACANT_DIRTY
+  OCCUPIED
+  INSPECTING
+  MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+enum SellableStatus {
+  SELLABLE
+  UNSELLABLE
+  BLOCKED
+  HIDDEN
+}
+
+enum BookingStatus {
+  DRAFT
+  PENDING_PAYMENT
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+enum InventoryLockStatus {
+  LOCKED
+  CONSUMED
+  EXPIRED
+  RELEASED
+}
+
+enum OccupancySource {
+  BOOKING
+  LEASE
+  MAINTENANCE
+  BLOCK
+  LOCK
+}
+
+enum OccupancyStatus {
+  ACTIVE
+  RELEASED
+  CANCELLED
+}
+
+enum SecurityCheckStatus {
+  PENDING
+  PASSED
+  FAILED
+}
+
+enum CheckInStatus {
+  CHECKED_IN
+  CHECKED_OUT
+}
+
+enum FolioStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  VOIDED
+  REVERSED
+  OVERDUE
+}
+
+enum PaymentStatus {
+  INITIATED
+  AUTHORIZED
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  ALIPAY
+  WECHAT
+  BANK_TRANSFER
+}
+
+enum OperatorRole {
+  FRONTDESK
+  MANAGER
+}
+
+enum OperatingMode {
+  DAILY
+  SHORT_STAY
+  LONG_STAY
+}
+
+model Property {
+  id        String    @id @default(cuid())
+  name      String
+  city      String
+  timezone  String
+  currency  String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  rooms     Room[]
+  operators Operator[]
+  bookings  Booking[]
+}
+
+model Room {
+  id             String          @id @default(cuid())
+  propertyId     String
+  roomNo         String
+  roomType       String
+  areaSqm        Float           @default(0)
+  roomStatus     RoomStatus
+  sellableStatus SellableStatus
+  operationState String          @default("IN_SERVICE")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  property       Property        @relation(fields: [propertyId], references: [id])
+  locks          InventoryLock[]
+  occupancies    OccupancyLedger[]
+  bookings       Booking[]
+  checkIns       CheckInRecord[]
+  folios         Folio[]
+  statusEvents   RoomStatusEvent[]
+  costProfile    RoomCostProfile?
+  revenueEntries RoomRevenueEntry[]
+
+  @@unique([propertyId, roomNo])
+}
+
+model Guest {
+  id         String    @id @default(cuid())
+  name       String
+  phone      String
+  idType     String?
+  idNoMasked String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  bookings   Booking[]
+}
+
+model Operator {
+  id           String       @id @default(cuid())
+  propertyId   String
+  username     String       @unique
+  passwordHash String
+  displayName  String
+  role         OperatorRole
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  property     Property     @relation(fields: [propertyId], references: [id])
+  sessions     AppSession[]
+}
+
+model AppSession {
+  id           String       @id @default(cuid())
+  operatorId   String
+  deviceId     String
+  sourceSystem SourceSystem
+  accessToken  String       @unique
+  refreshToken String       @unique
+  createdAt    DateTime     @default(now())
+  expiresAt    DateTime
+  operator     Operator     @relation(fields: [operatorId], references: [id])
+}
+
+model DeviceRegistration {
+  id           String       @id @default(cuid())
+  deviceId     String       @unique
+  propertyId   String
+  deviceModel  String
+  osVersion    String
+  appVersion   String
+  pushToken    String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  sourceSystem SourceSystem
+}
+
+model Booking {
+  id             String          @id @default(cuid())
+  propertyId     String
+  roomId         String
+  guestId        String
+  sourceSystem   SourceSystem
+  externalRef    String?
+  requestId      String
+  idempotencyKey String
+  status         BookingStatus
+  checkinAt      DateTime
+  checkoutAt     DateTime
+  totalAmount    Int
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  property       Property        @relation(fields: [propertyId], references: [id])
+  room           Room            @relation(fields: [roomId], references: [id])
+  guest          Guest           @relation(fields: [guestId], references: [id])
+  checkIns       CheckInRecord[]
+  folios         Folio[]
+
+  @@unique([sourceSystem, idempotencyKey])
+}
+
+model InventoryLock {
+  id             String              @id @default(cuid())
+  roomId         String
+  sourceSystem   SourceSystem
+  requestId      String
+  idempotencyKey String
+  startAt        DateTime
+  endAt          DateTime
+  expiresAt      DateTime
+  reason         String
+  status         InventoryLockStatus
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  room           Room                @relation(fields: [roomId], references: [id])
+
+  @@unique([sourceSystem, idempotencyKey])
+}
+
+model OccupancyLedger {
+  id         String          @id @default(cuid())
+  roomId      String
+  sourceType  String
+  sourceId    String
+  source      OccupancySource
+  status      OccupancyStatus
+  priority    Int
+  startAt     DateTime
+  endAt       DateTime
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  room        Room            @relation(fields: [roomId], references: [id])
+}
+
+model CheckInRecord {
+  id                  String              @id @default(cuid())
+  bookingId           String
+  roomId              String
+  requestId           String
+  idempotencyKey      String
+  checkoutRequestId   String?
+  checkoutIdempotencyKey String?
+  actualCheckinAt     DateTime
+  actualCheckoutAt    DateTime?
+  securityCheckStatus SecurityCheckStatus
+  status              CheckInStatus
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  booking             Booking             @relation(fields: [bookingId], references: [id])
+  room                Room                @relation(fields: [roomId], references: [id])
+
+  @@unique([bookingId, idempotencyKey])
+  @@unique([bookingId, checkoutIdempotencyKey])
+}
+
+model Folio {
+  id          String      @id @default(cuid())
+  bookingId   String
+  roomId      String
+  status      FolioStatus
+  amountDue   Int
+  amountPaid  Int         @default(0)
+  currency    String
+  dueDate     DateTime
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  booking     Booking     @relation(fields: [bookingId], references: [id])
+  room        Room        @relation(fields: [roomId], references: [id])
+  payments    Payment[]
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  folioId        String
+  requestId      String
+  idempotencyKey String
+  amount         Int
+  method         PaymentMethod
+  provider       String
+  channelTxnNo   String
+  status         PaymentStatus
+  paidAt         DateTime
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  folio          Folio         @relation(fields: [folioId], references: [id])
+
+  @@unique([provider, channelTxnNo])
+  @@unique([folioId, idempotencyKey])
+}
+
+model RoomStatusEvent {
+  id             String       @id @default(cuid())
+  roomId         String
+  beforeStatus   RoomStatus
+  afterStatus    RoomStatus
+  triggerType    String
+  triggerRefType String
+  triggerRefId   String
+  operator       String
+  occurredAt     DateTime     @default(now())
+  room           Room         @relation(fields: [roomId], references: [id])
+}
+
+model RoomCostProfile {
+  id                 String   @id @default(cuid())
+  roomId             String   @unique
+  monthlyRentCost    Int
+  monthlyCleaningCost Int
+  monthlyMaintenanceCost Int
+  monthlyUtilityCost Int
+  monthlyOtherCost   Int      @default(0)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  room               Room     @relation(fields: [roomId], references: [id])
+}
+
+model RoomRevenueEntry {
+  id                String        @id @default(cuid())
+  roomId            String
+  operatingMode     OperatingMode
+  periodYear        Int
+  periodMonth       Int
+  periodStart       DateTime
+  periodEnd         DateTime
+  recognizedRevenue Int
+  occupiedNights    Int
+  orderCount        Int           @default(0)
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  room              Room          @relation(fields: [roomId], references: [id])
+
+  @@unique([roomId, periodYear, periodMonth, operatingMode])
+}

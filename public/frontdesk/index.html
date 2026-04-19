@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>前台工作台</title>
+    <link rel="stylesheet" href="/frontdesk/styles.css" />
+  </head>
+  <body>
+    <main class="dashboard-shell">
+      <header class="masthead">
+        <div class="masthead-copy">
+          <p class="kicker">Front Desk Console</p>
+          <h1 id="propertyName">加载中...</h1>
+          <p class="masthead-meta" id="propertyMeta">正在连接前台工作台</p>
+        </div>
+
+        <div class="masthead-actions">
+          <div class="clock-card">
+            <strong id="liveClock">--:--:--</strong>
+            <span id="liveDate">----</span>
+          </div>
+
+          <div class="sync-card-inline">
+            <div class="sync-pill">
+              <span class="sync-dot"></span>
+              <span id="syncStatus">等待同步</span>
+            </div>
+            <span class="sync-inline-meta" id="syncMeta">--</span>
+          </div>
+
+          <a class="ghost-link" href="/economics/">房间盈亏</a>
+          <button id="refreshButton" class="refresh-button">刷新面板</button>
+        </div>
+      </header>
+
+      <section class="summary-strip">
+        <article class="summary-card summary-main">
+          <p class="kicker">班次摘要</p>
+          <h2 id="summaryTitle">正在汇总当前班次重点</h2>
+          <p id="summaryCopy">系统会根据到离店与房态数据生成当前值班摘要。</p>
+        </article>
+
+        <article class="summary-card summary-facts">
+          <div class="fact-chip">
+            <span>项目编号</span>
+            <strong id="propertyId">--</strong>
+          </div>
+          <div class="fact-chip">
+            <span>示例账号</span>
+            <strong id="operatorName">--</strong>
+          </div>
+          <div class="fact-chip">
+            <span>示例订单</span>
+            <strong id="sampleBookingId">--</strong>
+          </div>
+        </article>
+      </section>
+
+      <section class="metric-grid">
+        <article class="metric-card">
+          <span class="metric-label">今日预抵</span>
+          <strong class="metric-value" id="arrivalsCount">--</strong>
+          <span class="metric-note">预计到店客人</span>
+        </article>
+
+        <article class="metric-card">
+          <span class="metric-label">今日预离</span>
+          <strong class="metric-value" id="departuresCount">--</strong>
+          <span class="metric-note">待办理离店</span>
+        </article>
+
+        <article class="metric-card">
+          <span class="metric-label">当前在住</span>
+          <strong class="metric-value" id="inHouseCount">--</strong>
+          <span class="metric-note">实时在住房间</span>
+        </article>
+
+        <article class="metric-card">
+          <span class="metric-label">脏房 / 维修</span>
+          <strong class="metric-value" id="dirtyRoomCount">--</strong>
+          <span class="metric-note">需要跟进</span>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel room-panel">
+          <div class="panel-header">
+            <div>
+              <p class="kicker">Room Board</p>
+              <h3>房态总览</h3>
+            </div>
+            <span class="panel-meta" id="roomBoardMeta">--</span>
+          </div>
+
+          <div class="filter-row" id="roomFilters"></div>
+          <div class="room-summary" id="roomSummary"></div>
+          <div class="room-grid" id="roomGrid"></div>
+        </article>
+
+        <div class="side-column">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="kicker">Arrival Radar</p>
+                <h3>今日预抵</h3>
+              </div>
+              <span class="panel-meta" id="arrivalsMeta">--</span>
+            </div>
+            <div class="list-stack" id="arrivalsList"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="kicker">Departure Radar</p>
+                <h3>今日预离</h3>
+              </div>
+              <span class="panel-meta" id="departuresMeta">--</span>
+            </div>
+            <div class="list-stack" id="departuresList"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="kicker">Live Cursor</p>
+                <h3>同步状态</h3>
+              </div>
+              <span class="panel-meta" id="syncServerTime">--</span>
+            </div>
+
+            <div class="sync-overview">
+              <div class="sync-line">
+                <span>最近游标</span>
+                <strong id="syncCursor">尚未拉取</strong>
+              </div>
+              <div class="sync-stats">
+                <div>
+                  <span>订单变更</span>
+                  <strong id="syncBookingCount">0</strong>
+                </div>
+                <div>
+                  <span>房态变更</span>
+                  <strong id="syncRoomCount">0</strong>
+                </div>
+                <div>
+                  <span>入住变更</span>
+                  <strong id="syncCheckinCount">0</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="timeline-stack" id="syncTimeline"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <aside class="detail-drawer" id="detailDrawer" aria-hidden="true">
+      <div class="drawer-card">
+        <button class="drawer-close" id="drawerClose" aria-label="关闭">×</button>
+        <p class="kicker">Booking Detail</p>
+        <h3 id="drawerTitle">订单详情</h3>
+        <div class="drawer-content" id="drawerContent">点击预抵或预离卡片查看详情</div>
+      </div>
+    </aside>
+
+    <script type="module" src="/frontdesk/app.js"></script>
+  </body>
+</html>
