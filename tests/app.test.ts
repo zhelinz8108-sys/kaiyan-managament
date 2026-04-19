@@ -177,6 +177,7 @@ describe("hotel apartment api", () => {
       data: {
         roomId: testData.roomId,
         monthlyRentCost: 20000,
+        monthlyPropertyFeeCost: 3000,
         monthlyCleaningCost: 2000,
         monthlyMaintenanceCost: 1000,
         monthlyUtilityCost: 1500,
@@ -206,11 +207,33 @@ describe("hotel apartment api", () => {
     expect(economicsResponse.statusCode).toBe(200);
     const payload = economicsResponse.json();
     expect(payload.data.summary.totalRevenue).toBe(60000);
-    expect(payload.data.summary.totalFixedCost).toBe(25000);
-    expect(payload.data.summary.grossProfit).toBe(35000);
+    expect(payload.data.summary.totalFixedCost).toBe(28000);
+    expect(payload.data.summary.grossProfit).toBe(32000);
     expect(payload.data.rooms[0].profitability.status).toBe("PROFIT");
     expect(payload.data.rooms[0].areaSqm).toBe(68.5);
     expect(payload.data.rooms[0].floor).toBe("12");
+    expect(payload.data.rooms[0].monthlyCost.propertyFee).toBe(3000);
+    await app.close();
+  });
+
+  it("returns zero-based economics when no revenue or cost has been recorded", async () => {
+    const app = await createApp();
+
+    const economicsResponse = await app.inject({
+      method: "GET",
+      url: `/api/v1/asset/room-economics?property_id=${testData.propertyId}&year=2026`,
+    });
+
+    expect(economicsResponse.statusCode).toBe(200);
+    const payload = economicsResponse.json();
+    expect(payload.data.summary.totalRevenue).toBe(0);
+    expect(payload.data.summary.totalFixedCost).toBe(0);
+    expect(payload.data.summary.grossProfit).toBe(0);
+    expect(payload.data.summary.profitableRooms).toBe(0);
+    expect(payload.data.summary.lossRooms).toBe(0);
+    expect(payload.data.summary.bestRoom).toBeNull();
+    expect(payload.data.summary.worstRoom).toBeNull();
+    expect(payload.data.rooms[0].profitability.status).toBe("BREAKEVEN");
     await app.close();
   });
 
@@ -244,6 +267,7 @@ describe("hotel apartment api", () => {
       data: rooms.map((room, index) => ({
         roomId: room.id,
         monthlyRentCost: 20000 + (index % 5) * 1000,
+        monthlyPropertyFeeCost: 1400,
         monthlyCleaningCost: 1800,
         monthlyMaintenanceCost: 1200,
         monthlyUtilityCost: 1600,
@@ -275,6 +299,35 @@ describe("hotel apartment api", () => {
     expect(payload.data.rooms).toHaveLength(200);
     expect(payload.data.summary.profitableRooms + payload.data.summary.lossRooms).toBe(200);
     expect(payload.data.summary.totalRevenue).toBeGreaterThan(0);
+    await app.close();
+  });
+
+  it("updates room cost profile with property fee", async () => {
+    const app = await createApp();
+
+    const response = await app.inject({
+      method: "PUT",
+      url: `/api/v1/rooms/${testData.roomId}/cost-profile`,
+      payload: {
+        monthly_rent_cost: 26000,
+        monthly_property_fee_cost: 1800,
+        monthly_cleaning_cost: 2200,
+        monthly_maintenance_cost: 900,
+        monthly_utility_cost: 1600,
+        monthly_other_cost: 700,
+        notes: "业主手工录入",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const profile = await prisma.roomCostProfile.findUnique({
+      where: { roomId: testData.roomId },
+    });
+
+    expect(profile?.monthlyRentCost).toBe(26000);
+    expect(profile?.monthlyPropertyFeeCost).toBe(1800);
+    expect(profile?.notes).toBe("业主手工录入");
     await app.close();
   });
 });

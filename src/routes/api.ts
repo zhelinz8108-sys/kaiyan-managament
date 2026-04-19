@@ -24,6 +24,7 @@ import {
 } from "../services/frontdesk-service.js";
 import { createInventoryLock } from "../services/inventory-service.js";
 import { getRoomEconomicsOverview } from "../services/economics-service.js";
+import { upsertRoomCostProfile } from "../services/room-cost-service.js";
 
 const sourceSystemEnum = z.nativeEnum(SourceSystem);
 const paymentMethodEnum = z.nativeEnum(PaymentMethod);
@@ -58,6 +59,39 @@ export async function registerApiRoutes(app: FastifyInstance) {
       message: "success",
       trace_id: buildTraceId(),
       data: room,
+    };
+  });
+
+  app.put("/api/v1/rooms/:id/cost-profile", async (request) => {
+    const params = z.object({ id: z.string().min(1) }).parse(request.params);
+    const body = z
+      .object({
+        monthly_rent_cost: z.number().int().nonnegative(),
+        monthly_property_fee_cost: z.number().int().nonnegative(),
+        monthly_cleaning_cost: z.number().int().nonnegative(),
+        monthly_maintenance_cost: z.number().int().nonnegative(),
+        monthly_utility_cost: z.number().int().nonnegative(),
+        monthly_other_cost: z.number().int().nonnegative(),
+        notes: z.string().max(500).optional(),
+      })
+      .parse(request.body);
+
+    const profile = await upsertRoomCostProfile({
+      roomId: params.id,
+      monthlyRentCost: body.monthly_rent_cost,
+      monthlyPropertyFeeCost: body.monthly_property_fee_cost,
+      monthlyCleaningCost: body.monthly_cleaning_cost,
+      monthlyMaintenanceCost: body.monthly_maintenance_cost,
+      monthlyUtilityCost: body.monthly_utility_cost,
+      monthlyOtherCost: body.monthly_other_cost,
+      notes: body.notes,
+    });
+
+    return {
+      code: "OK",
+      message: "success",
+      trace_id: buildTraceId(),
+      data: profile,
     };
   });
 

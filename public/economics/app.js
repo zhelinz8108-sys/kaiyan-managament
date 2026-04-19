@@ -15,14 +15,21 @@ const state = {
   year: null,
   selectedRoomId: null,
   filters: createDefaultFilters(),
+  filtersPanelOpen: false,
   expandedFloors: new Set(),
 };
 
 const el = {
   propertyName: document.querySelector("#propertyName"),
   periodLabel: document.querySelector("#periodLabel"),
+  filterToggleButton: document.querySelector("#filterToggleButton"),
   clearFiltersButton: document.querySelector("#clearFiltersButton"),
   refreshButton: document.querySelector("#refreshButton"),
+  setupBanner: document.querySelector("#setupBanner"),
+  summaryGrid: document.querySelector(".summary-grid"),
+  toolbarCard: document.querySelector(".toolbar-card"),
+  advancedFilters: document.querySelector("#advancedFilters"),
+  secondaryInsights: document.querySelector("#secondaryInsights"),
   totalRevenue: document.querySelector("#totalRevenue"),
   totalFixedCost: document.querySelector("#totalFixedCost"),
   grossProfit: document.querySelector("#grossProfit"),
@@ -40,12 +47,8 @@ const el = {
   floorSelect: document.querySelector("#floorSelect"),
   typeFilters: document.querySelector("#typeFilters"),
   sortSelect: document.querySelector("#sortSelect"),
-  watchLoss: document.querySelector("#watchLoss"),
-  watchIdle: document.querySelector("#watchIdle"),
-  watchThin: document.querySelector("#watchThin"),
-  watchMixed: document.querySelector("#watchMixed"),
-  watchNote: document.querySelector("#watchNote"),
   roomListMeta: document.querySelector("#roomListMeta"),
+  tableHead: document.querySelector(".table-head"),
   roomList: document.querySelector("#roomList"),
   detailDrawer: document.querySelector("#detailDrawer"),
   drawerClose: document.querySelector("#drawerClose"),
@@ -53,6 +56,15 @@ const el = {
   drawerSubtitle: document.querySelector("#drawerSubtitle"),
   drawerContent: document.querySelector("#drawerContent"),
 };
+
+const costFieldConfig = [
+  { key: "rent", label: "月租成本" },
+  { key: "propertyFee", label: "月物业费" },
+  { key: "cleaning", label: "月保洁费" },
+  { key: "maintenance", label: "月维修费" },
+  { key: "utility", label: "月水电杂费" },
+  { key: "other", label: "月其他费用" },
+];
 
 const profitabilityFilters = [
   { value: "ALL", label: "全部" },
@@ -78,6 +90,16 @@ const sortLabels = {
   revenue_desc: "收益最高优先",
   margin_desc: "毛利率最高优先",
 };
+
+function isBlankBaseline(summary) {
+  return (
+    summary.totalRevenue === 0 &&
+    summary.totalFixedCost === 0 &&
+    summary.grossProfit === 0 &&
+    summary.profitableRooms === 0 &&
+    summary.lossRooms === 0
+  );
+}
 
 async function api(path) {
   const response = await fetch(path);
@@ -109,7 +131,11 @@ function formatCurrency(value) {
 }
 
 function formatSignedCurrency(value) {
-  return `${value >= 0 ? "+" : "-"}${formatCurrency(Math.abs(value))}`;
+  if (value === 0) {
+    return formatCurrency(0);
+  }
+
+  return `${value > 0 ? "+" : "-"}${formatCurrency(Math.abs(value))}`;
 }
 
 function formatPercent(value) {
@@ -125,6 +151,18 @@ function formatArea(value) {
     minimumFractionDigits: value % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(value)}㎡`;
+}
+
+function formatMoneyInput(value) {
+  return (value / 100).toFixed(2);
+}
+
+function parseMoneyInput(value) {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+  return Math.round(parsed * 100);
 }
 
 function floorNumber(value) {
@@ -247,6 +285,7 @@ function costCard(room) {
       <h4>成本端</h4>
       <div class="line-list">
         <div class="line-item"><span>月租成本</span><strong>${formatCurrency(room.monthlyCost.rent)}</strong></div>
+        <div class="line-item"><span>月物业费</span><strong>${formatCurrency(room.monthlyCost.propertyFee)}</strong></div>
         <div class="line-item"><span>月保洁费</span><strong>${formatCurrency(room.monthlyCost.cleaning)}</strong></div>
         <div class="line-item"><span>月维修费</span><strong>${formatCurrency(room.monthlyCost.maintenance)}</strong></div>
         <div class="line-item"><span>月水电杂费</span><strong>${formatCurrency(room.monthlyCost.utility)}</strong></div>
@@ -267,10 +306,55 @@ function costCard(room) {
   `;
 }
 
+function costEditorCard(room) {
+  const fields = costFieldConfig.map((field) => `
+    <label class="cost-editor-field">
+      <span>${field.label}</span>
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        name="${field.key}"
+        value="${formatMoneyInput(room.monthlyCost[field.key])}"
+      />
+    </label>
+  `).join("");
+
+  return `
+    <section class="detail-card cost-editor-card">
+      <div class="cost-editor-header">
+        <div>
+          <h4>成本录入</h4>
+          <p class="cost-editor-copy">按房间维护真实月成本，保存后会重新计算固定成本、毛利和盈利/亏损。</p>
+        </div>
+        <span class="cost-editor-hint">金额单位：元 / 月</span>
+      </div>
+      <form class="cost-editor-form" data-room-id="${room.roomId}">
+        <div class="cost-editor-grid">
+          ${fields}
+        </div>
+        <label class="cost-editor-field cost-editor-notes">
+          <span>备注</span>
+          <textarea name="notes" rows="3" placeholder="例如：业主自行承担保洁，物业费按季度分摊">${room.notes ?? ""}</textarea>
+        </label>
+        <div class="cost-editor-actions">
+          <button type="submit" class="refresh-button cost-save-button">保存成本</button>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
 function profitabilityGrade(room) {
   const margin = room.profitability.margin ?? 0;
+  if (room.revenue.total === 0 && room.fixedCost === 0) {
+    return { label: "待录入", className: "grade-watch" };
+  }
   if (room.profitability.grossProfit < 0) {
     return { label: "风险", className: "grade-risk" };
+  }
+  if (room.profitability.grossProfit === 0) {
+    return { label: "持平", className: "grade-watch" };
   }
   if (margin >= 0.35) {
     return { label: "A级", className: "grade-a" };
@@ -306,12 +390,21 @@ function isThinMargin(room) {
 }
 
 function detailMarkup(room) {
-  const profitClass = room.profitability.status === "PROFIT" ? "profit" : "loss";
+  const profitClass =
+    room.profitability.status === "PROFIT"
+      ? "profit"
+      : room.profitability.status === "LOSS"
+        ? "loss"
+        : "neutral";
   const grade = profitabilityGrade(room);
   const profitDescription =
     room.profitability.status === "PROFIT"
       ? "本房间已经覆盖固定成本"
-      : "本房间尚未覆盖固定成本";
+      : room.profitability.status === "LOSS"
+        ? "本房间尚未覆盖固定成本"
+        : room.revenue.total === 0 && room.fixedCost === 0
+          ? "当前尚未录入收益和成本"
+          : "本房间当前处于盈亏持平";
 
   return `
     <section class="drawer-hero">
@@ -345,35 +438,46 @@ function detailMarkup(room) {
       ${revenueCard(room)}
       ${costCard(room)}
     </section>
+
+    ${costEditorCard(room)}
   `;
 }
 
 function renderHeader() {
   const { property, period, summary } = state.overview;
+  const blankBaseline = isBlankBaseline(summary);
   const tone = summary.grossProfit >= 0 ? "整体盈利" : "整体亏损";
 
+  document.title = property.name;
   el.propertyName.textContent = property.name;
   el.periodLabel.textContent =
-    `${period.label} · ${tone} ${formatCurrency(Math.abs(summary.grossProfit))}，` +
-    "围绕单房收益、固定成本和经营结构，快速判断每套房是赚钱还是亏钱。";
+    blankBaseline
+      ? `${period.label} · 当前还没有录入任何收益或成本，先从楼层开始。`
+      : `${period.label} · ${tone} ${formatCurrency(Math.abs(summary.grossProfit))} · 按楼层展开查看每间房的收益、固定成本和利润。`;
 }
 
 function setSummaryTone(summary) {
   const grossProfitCard = el.grossProfit.closest(".summary-card");
-  grossProfitCard.classList.toggle("profit", summary.grossProfit >= 0);
+  grossProfitCard.classList.toggle("profit", summary.grossProfit > 0);
   grossProfitCard.classList.toggle("loss", summary.grossProfit < 0);
+  grossProfitCard.classList.toggle("neutral", summary.grossProfit === 0);
 }
 
 function renderSummary() {
   const { summary } = state.overview;
+  const blankBaseline = isBlankBaseline(summary);
 
   el.totalRevenue.textContent = formatCurrency(summary.totalRevenue);
   el.totalFixedCost.textContent = formatCurrency(summary.totalFixedCost);
   el.grossProfit.textContent = formatSignedCurrency(summary.grossProfit);
   el.profitabilityTag.textContent =
-    summary.grossProfit >= 0
+    summary.totalRevenue === 0 && summary.totalFixedCost === 0
+      ? "等待录入收益和成本"
+      : summary.grossProfit > 0
       ? "本期整体已覆盖固定成本"
-      : "本期整体仍未覆盖固定成本";
+      : summary.grossProfit < 0
+        ? "本期整体仍未覆盖固定成本"
+        : "本期整体盈亏持平";
   el.profitableRooms.textContent = `${summary.profitableRooms} 间`;
   el.lossRooms.textContent = `亏损房间 ${summary.lossRooms} 间`;
   el.dailyRevenue.textContent = formatCurrency(summary.revenueByMode.DAILY);
@@ -386,6 +490,10 @@ function renderSummary() {
     ? `最佳 ${formatSignedCurrency(summary.bestRoom.grossProfit)} · 最弱 ${formatSignedCurrency(summary.worstRoom?.grossProfit ?? 0)}`
     : "暂无经营表现数据";
 
+  el.setupBanner.hidden = !blankBaseline;
+  el.summaryGrid.hidden = blankBaseline;
+  el.secondaryInsights.hidden = blankBaseline;
+  el.toolbarCard.classList.toggle("compact", blankBaseline && !state.filtersPanelOpen);
   setSummaryTone(summary);
 }
 
@@ -412,10 +520,12 @@ function renderControls() {
 
   renderChipGroup(el.profitFilters, profitabilityFilters, state.filters.profitability, (value) => {
     state.filters.profitability = value;
+    renderControls();
     renderLedger();
   });
   renderChipGroup(el.modeFilters, modeFilters, state.filters.mode, (value) => {
     state.filters.mode = value;
+    renderControls();
     renderLedger();
   });
   renderChipGroup(
@@ -424,6 +534,7 @@ function renderControls() {
     state.filters.type,
     (value) => {
       state.filters.type = value;
+      renderControls();
       renderLedger();
     },
   );
@@ -436,6 +547,8 @@ function renderControls() {
   el.roomSearch.value = state.filters.search;
   el.floorSelect.value = floors.includes(state.filters.floor) ? state.filters.floor : "ALL";
   el.sortSelect.value = state.filters.sort;
+  el.advancedFilters.hidden = !state.filtersPanelOpen;
+  el.filterToggleButton.textContent = state.filtersPanelOpen ? "收起筛选" : "更多筛选";
 }
 
 function renderWatchPanel() {
@@ -476,7 +589,7 @@ function roomMatchesFilters(room) {
     return false;
   }
 
-  if (state.filters.profitability === "PROFIT" && room.profitability.grossProfit < 0) {
+  if (state.filters.profitability === "PROFIT" && room.profitability.grossProfit <= 0) {
     return false;
   }
   if (state.filters.profitability === "LOSS" && room.profitability.grossProfit >= 0) {
@@ -533,11 +646,6 @@ function syncExpandedFloors(floors) {
 
   if (state.filters.floor !== "ALL" && visibleFloors.has(state.filters.floor)) {
     state.expandedFloors = new Set([state.filters.floor]);
-    return;
-  }
-
-  if (state.expandedFloors.size === 0 && floors.length > 0) {
-    state.expandedFloors.add(floors[0]);
   }
 }
 
@@ -553,6 +661,7 @@ function toggleFloor(floor) {
 function floorSectionMarkup(floor, rooms, expanded) {
   const totalRevenue = rooms.reduce((sum, room) => sum + room.revenue.total, 0);
   const totalGrossProfit = rooms.reduce((sum, room) => sum + room.profitability.grossProfit, 0);
+  const blankFloor = totalRevenue === 0 && totalGrossProfit === 0;
 
   return `
     <section class="floor-section ${expanded ? "expanded" : "collapsed"}">
@@ -567,8 +676,9 @@ function floorSectionMarkup(floor, rooms, expanded) {
           <div class="floor-section-count">${rooms.length} 套</div>
         </div>
         <div class="floor-section-summary">
-          <span>收益 ${formatCurrency(totalRevenue)}</span>
-          <span>毛利 ${formatSignedCurrency(totalGrossProfit)}</span>
+          ${blankFloor
+            ? `<span class="floor-section-note">未录入收益和成本</span>`
+            : `<span>收益 ${formatCurrency(totalRevenue)}</span><span>毛利 ${formatSignedCurrency(totalGrossProfit)}</span>`}
           <span class="floor-section-action">${expanded ? "收起" : "展开"}</span>
         </div>
       </button>
@@ -580,8 +690,18 @@ function floorSectionMarkup(floor, rooms, expanded) {
 }
 
 function rowMarkup(room) {
-  const profitClass = room.profitability.status === "PROFIT" ? "profit" : "loss";
-  const rowTone = room.profitability.status === "PROFIT" ? "row-profit" : "row-loss";
+  const profitClass =
+    room.profitability.status === "PROFIT"
+      ? "profit"
+      : room.profitability.status === "LOSS"
+        ? "loss"
+        : "neutral";
+  const rowTone =
+    room.profitability.status === "PROFIT"
+      ? "row-profit"
+      : room.profitability.status === "LOSS"
+        ? "row-loss"
+        : "row-neutral";
   const grade = profitabilityGrade(room);
 
   return `
@@ -638,6 +758,7 @@ function renderLedger() {
     `显示 ${rooms.length} / ${state.overview.rooms.length} 间 · ${floorLabel} · ${sortLabels[state.filters.sort]}`;
 
   if (!rooms.length) {
+    el.tableHead.hidden = true;
     el.roomList.innerHTML = `
       <div class="empty-state">
         当前筛选条件下没有匹配的房间，请调整搜索或筛选条件。
@@ -659,10 +780,13 @@ function renderLedger() {
     }
 
     syncExpandedFloors(sections);
+    const hasExpandedFloor = sections.some((floor) => state.expandedFloors.has(floor));
+    el.tableHead.hidden = !hasExpandedFloor;
     el.roomList.innerHTML = sections
       .map((floor) => floorSectionMarkup(floor, roomMap.get(floor), state.expandedFloors.has(floor)))
       .join("");
   } else {
+    el.tableHead.hidden = false;
     el.roomList.innerHTML = rooms.map(rowMarkup).join("");
   }
 
@@ -693,6 +817,45 @@ function openDrawer(roomId) {
   window.history.replaceState({}, "", url);
 }
 
+async function saveRoomCostProfile(form) {
+  const roomId = form.dataset.roomId;
+  const formData = new FormData(form);
+  const payload = {
+    monthly_rent_cost: parseMoneyInput(String(formData.get("rent") ?? "")),
+    monthly_property_fee_cost: parseMoneyInput(String(formData.get("propertyFee") ?? "")),
+    monthly_cleaning_cost: parseMoneyInput(String(formData.get("cleaning") ?? "")),
+    monthly_maintenance_cost: parseMoneyInput(String(formData.get("maintenance") ?? "")),
+    monthly_utility_cost: parseMoneyInput(String(formData.get("utility") ?? "")),
+    monthly_other_cost: parseMoneyInput(String(formData.get("other") ?? "")),
+    notes: String(formData.get("notes") ?? "").trim(),
+  };
+
+  if (Object.values(payload).some((value) => value === null)) {
+    throw new Error("成本金额必须是大于等于 0 的数字");
+  }
+
+  const submitButton = form.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  submitButton.textContent = "保存中...";
+
+  try {
+    const response = await fetch(`/api/v1/rooms/${roomId}/cost-profile`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`保存失败：${response.status}`);
+    }
+
+    await loadOverview();
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "保存成本";
+  }
+}
+
 function closeDrawer() {
   el.detailDrawer.classList.remove("open");
   el.detailDrawer.setAttribute("aria-hidden", "true");
@@ -704,6 +867,12 @@ function closeDrawer() {
 }
 
 function bindControls() {
+  el.filterToggleButton.addEventListener("click", () => {
+    state.filtersPanelOpen = !state.filtersPanelOpen;
+    renderControls();
+    renderSummary();
+  });
+
   el.roomSearch.addEventListener("input", () => {
     state.filters.search = el.roomSearch.value;
     renderLedger();
@@ -721,8 +890,10 @@ function bindControls() {
 
   el.clearFiltersButton.addEventListener("click", () => {
     state.filters = createDefaultFilters();
+    state.filtersPanelOpen = false;
     state.expandedFloors = new Set();
     renderControls();
+    renderSummary();
     renderLedger();
   });
 
@@ -741,6 +912,21 @@ function bindControls() {
   el.detailDrawer.addEventListener("click", (event) => {
     if (event.target === el.detailDrawer) {
       closeDrawer();
+    }
+  });
+
+  el.drawerContent.addEventListener("submit", async (event) => {
+    const form = event.target.closest(".cost-editor-form");
+    if (!form) {
+      return;
+    }
+
+    event.preventDefault();
+    try {
+      await saveRoomCostProfile(form);
+    } catch (error) {
+      console.error(error);
+      window.alert(error instanceof Error ? error.message : "保存成本失败");
     }
   });
 
@@ -765,7 +951,6 @@ async function loadOverview() {
   renderHeader();
   renderSummary();
   renderControls();
-  renderWatchPanel();
   renderLedger();
 
   if (state.selectedRoomId) {

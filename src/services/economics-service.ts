@@ -12,6 +12,7 @@ type MonthMixItem = {
 
 function monthlyCostTotal(costProfile: {
   monthlyRentCost: number;
+  monthlyPropertyFeeCost: number;
   monthlyCleaningCost: number;
   monthlyMaintenanceCost: number;
   monthlyUtilityCost: number;
@@ -23,6 +24,7 @@ function monthlyCostTotal(costProfile: {
 
   return (
     costProfile.monthlyRentCost +
+    costProfile.monthlyPropertyFeeCost +
     costProfile.monthlyCleaningCost +
     costProfile.monthlyMaintenanceCost +
     costProfile.monthlyUtilityCost +
@@ -143,6 +145,7 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
       sellableStatus: room.sellableStatus,
       monthlyCost: {
         rent: room.costProfile?.monthlyRentCost ?? 0,
+        propertyFee: room.costProfile?.monthlyPropertyFeeCost ?? 0,
         cleaning: room.costProfile?.monthlyCleaningCost ?? 0,
         maintenance: room.costProfile?.monthlyMaintenanceCost ?? 0,
         utility: room.costProfile?.monthlyUtilityCost ?? 0,
@@ -159,7 +162,7 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
       profitability: {
         grossProfit,
         margin,
-        status: grossProfit >= 0 ? "PROFIT" : "LOSS",
+        status: grossProfit > 0 ? "PROFIT" : grossProfit < 0 ? "LOSS" : "BREAKEVEN",
       },
       mixSummary,
       monthMix,
@@ -170,13 +173,15 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
   const totalRevenue = rooms.reduce((sum, room) => sum + room.revenue.total, 0);
   const totalFixedCost = rooms.reduce((sum, room) => sum + room.fixedCost, 0);
   const grossProfit = totalRevenue - totalFixedCost;
-  const profitableRooms = rooms.filter((room) => room.profitability.grossProfit >= 0).length;
-  const bestRoom = [...rooms].sort(
-    (left, right) => right.profitability.grossProfit - left.profitability.grossProfit,
-  )[0] ?? null;
-  const worstRoom = [...rooms].sort(
-    (left, right) => left.profitability.grossProfit - right.profitability.grossProfit,
-  )[0] ?? null;
+  const profitableRooms = rooms.filter((room) => room.profitability.grossProfit > 0).length;
+  const lossRooms = rooms.filter((room) => room.profitability.grossProfit < 0).length;
+  const hasEconomicsData = rooms.some((room) => room.revenue.total !== 0 || room.fixedCost !== 0);
+  const bestRoom = hasEconomicsData
+    ? [...rooms].sort((left, right) => right.profitability.grossProfit - left.profitability.grossProfit)[0] ?? null
+    : null;
+  const worstRoom = hasEconomicsData
+    ? [...rooms].sort((left, right) => left.profitability.grossProfit - right.profitability.grossProfit)[0] ?? null
+    : null;
 
   const modeTotals = rooms.reduce(
     (accumulator, room) => {
@@ -207,7 +212,7 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
       totalFixedCost,
       grossProfit,
       profitableRooms,
-      lossRooms: rooms.length - profitableRooms,
+      lossRooms,
       revenueByMode: modeTotals,
       bestRoom: bestRoom
         ? {

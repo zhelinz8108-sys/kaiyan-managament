@@ -330,6 +330,7 @@ model RoomCostProfile {
   id                 String   @id @default(cuid())
   roomId             String   @unique
   monthlyRentCost    Int
+  monthlyPropertyFeeCost Int  @default(0)
   monthlyCleaningCost Int
   monthlyMaintenanceCost Int
   monthlyUtilityCost Int
