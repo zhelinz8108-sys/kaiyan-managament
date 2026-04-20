@@ -544,6 +544,7 @@ a {
 }
 
 .toolbar-main,
+.scope-strip,
 .toolbar-filters,
 .toolbar-insights {
   display: grid;
@@ -557,6 +558,13 @@ a {
 
 .toolbar-filters {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.scope-strip {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
@@ -941,6 +949,36 @@ a {
 .sellable-pill {
   background: rgba(58, 127, 130, 0.1);
   color: var(--teal);
+}
+
+.management-pill {
+  background: rgba(74, 59, 45, 0.08);
+  color: var(--muted);
+}
+
+.management-active {
+  background: var(--profit-soft);
+  color: var(--profit);
+}
+
+.management-ready {
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+
+.management-negotiating {
+  background: rgba(58, 127, 130, 0.12);
+  color: var(--teal);
+}
+
+.management-paused {
+  background: rgba(142, 131, 119, 0.16);
+  color: var(--idle);
+}
+
+.management-exited {
+  background: var(--loss-soft);
+  color: var(--loss);
 }
 
 .room-cell strong,

@@ -14,18 +14,17 @@
       <section class="hero-band">
         <header class="dashboard-header">
           <div class="header-copy">
-            <p class="kicker">Room Economics</p>
+            <p class="kicker">Owner Inventory</p>
             <div class="headline-row">
               <h1 id="propertyName">加载中...</h1>
-              <span class="period-chip" id="periodChip">年度经营</span>
+              <span class="period-chip" id="periodChip">当前在管</span>
             </div>
-            <p class="header-meta" id="periodLabel">正在汇总房间收益、固定成本与利润表现</p>
+            <p class="header-meta" id="periodLabel">正在整理房源池与经营汇总</p>
           </div>
           <div class="header-actions">
-            <a class="secondary-button nav-link" href="/frontdesk/">前台面板</a>
-            <button id="filterToggleButton" class="secondary-button" type="button">更多筛选</button>
+            <button id="logoutButton" class="secondary-button" type="button">退出登录</button>
             <button id="clearFiltersButton" class="secondary-button" type="button">重置筛选</button>
-            <button id="refreshButton" class="refresh-button" type="button">刷新分析</button>
+            <button id="refreshButton" class="refresh-button" type="button">刷新数据</button>
           </div>
         </header>
 
@@ -33,63 +32,55 @@
           <div class="watch-header">
             <div>
               <p class="kicker">Portfolio Pulse</p>
-              <h2>本期关注清单</h2>
+              <h2>房源池状态</h2>
             </div>
-            <span class="watch-badge">逐套排查</span>
+            <span class="watch-badge">动态增减</span>
           </div>
 
           <div class="watch-grid">
-            <article class="watch-stat watch-stat-loss">
-              <span>亏损房</span>
-              <strong id="watchLoss">--</strong>
-              <small>优先核对成本与租型</small>
+            <article class="watch-stat watch-stat-thin">
+              <span>当前在管</span>
+              <strong id="watchManaged">--</strong>
+              <small>默认参与成本与收益汇总</small>
             </article>
             <article class="watch-stat watch-stat-idle">
-              <span>空置月房</span>
-              <strong id="watchIdle">--</strong>
-              <small>适合先看招商和定价</small>
-            </article>
-            <article class="watch-stat watch-stat-thin">
-              <span>薄利房</span>
-              <strong id="watchThin">--</strong>
-              <small>重点压缩隐性支出</small>
-            </article>
-            <article class="watch-stat watch-stat-mixed">
-              <span>混合经营</span>
-              <strong id="watchMixed">--</strong>
-              <small>检查切换节奏是否合理</small>
+              <span>当前在卖</span>
+              <strong id="watchSelling">--</strong>
+              <small>当前在管且处于可售状态</small>
             </article>
           </div>
 
-          <p class="watch-note" id="watchNote">正在生成本期经营建议...</p>
+          <p class="watch-note" id="watchNote">正在生成当前房源池说明...</p>
         </aside>
       </section>
 
       <section class="setup-banner" id="setupBanner" hidden>
         <p class="setup-banner-title">当前还是空白底稿</p>
-        <p class="setup-banner-copy">先从任意楼层开始逐套录入成本或收益；页面会先把可见楼层展开，方便你直接检查房间是否完整。</p>
+        <p class="setup-banner-copy">
+          首页默认只看当前在管房源。要新增房源，先切到“整栋底表”或“储备池”，打开房间详情后把状态改成“待上线”或“在管”。
+        </p>
       </section>
 
       <section class="summary-grid">
         <article class="summary-card summary-card-revenue">
-          <span>全年收益</span>
+          <span id="totalRevenueLabel">当前范围收益</span>
           <strong id="totalRevenue">--</strong>
-          <small>房间收益汇总</small>
+          <small id="totalRevenueMeta">当前范围内已确认收益</small>
         </article>
         <article class="summary-card summary-card-cost">
-          <span>全年固定成本</span>
+          <span id="totalFixedCostLabel">当前范围固定成本</span>
           <strong id="totalFixedCost">--</strong>
-          <small>月租、物业、保洁、维修、水电等</small>
+          <small id="totalFixedCostMeta">月租、物业、保洁、维修等</small>
         </article>
         <article class="summary-card summary-card-profit">
-          <span>毛利 / 毛亏</span>
+          <span id="grossProfitLabel">毛利 / 毛亏</span>
           <strong id="grossProfit">--</strong>
           <small id="profitabilityTag">--</small>
         </article>
         <article class="summary-card summary-card-rooms">
-          <span>盈利房间数</span>
-          <strong id="profitableRooms">--</strong>
-          <small id="lossRooms">--</small>
+          <span id="scopeRoomLabel">当前范围房量</span>
+          <strong id="scopeRoomCount">--</strong>
+          <small id="scopeRoomMeta">--</small>
         </article>
       </section>
 
@@ -120,7 +111,12 @@
           </label>
         </div>
 
-        <div class="toolbar-filters" id="advancedFilters" hidden>
+        <div class="scope-strip">
+          <span class="filter-label">查看范围</span>
+          <div class="chip-grid" id="scopeFilters"></div>
+        </div>
+
+        <div class="toolbar-filters" id="advancedFilters">
           <div class="filter-group">
             <span class="filter-label">盈亏</span>
             <div class="chip-grid" id="profitFilters"></div>
@@ -163,7 +159,9 @@
           <div>
             <p class="kicker">Asset Ledger</p>
             <h2>房间利润台账</h2>
-            <p class="ledger-copy">按楼层展开查看，每次只聚焦当前需要处理的一层；点击房号可查看完整收益、成本和录入明细。</p>
+            <p class="ledger-copy" id="ledgerCopy">
+              默认只显示当前范围内的房源，按楼层折叠后逐层展开处理。点开房号可录入成本，也可切换这套房当前是否在管。
+            </p>
           </div>
           <span class="ledger-meta" id="roomListMeta">--</span>
         </div>
@@ -187,7 +185,7 @@
         <div class="drawer-header">
           <p class="kicker">Asset Detail</p>
           <h3 id="drawerTitle">房间详情</h3>
-          <p class="drawer-copy" id="drawerSubtitle">点击房间后查看完整收益、成本与经营明细。</p>
+          <p class="drawer-copy" id="drawerSubtitle">查看单房经营、成本与在管状态</p>
         </div>
         <div class="drawer-content" id="drawerContent"></div>
       </div>

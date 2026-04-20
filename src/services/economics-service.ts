@@ -2,6 +2,10 @@ import { OperatingMode } from "@prisma/client";
 
 import { prisma } from "../lib/db.js";
 import { assertPresent } from "../lib/http.js";
+import {
+  managementSummaryFromSnapshots,
+  resolveManagementSnapshot,
+} from "./room-management-service.js";
 
 type MonthMixItem = {
   month: number;
@@ -9,6 +13,8 @@ type MonthMixItem = {
   revenue: number;
   occupiedNights: number;
 };
+
+export type InventoryScope = "ACTIVE_MANAGED" | "ALL_BUILDING" | "PIPELINE" | "EXITED";
 
 function monthlyCostTotal(costProfile: {
   monthlyRentCost: number;
@@ -88,7 +94,48 @@ function buildMonthMix(entries: Array<{
   });
 }
 
-export async function getRoomEconomicsOverview(propertyId: string, year: number, month?: number) {
+function matchesInventoryScope(
+  scope: InventoryScope,
+  snapshot: ReturnType<typeof resolveManagementSnapshot>,
+) {
+  switch (scope) {
+    case "ACTIVE_MANAGED":
+      return snapshot.status === "ACTIVE";
+    case "PIPELINE":
+      return ["POTENTIAL", "NEGOTIATING", "READY", "PAUSED", "UNMANAGED"].includes(snapshot.status);
+    case "EXITED":
+      return snapshot.status === "EXITED";
+    case "ALL_BUILDING":
+    default:
+      return true;
+  }
+}
+
+function scopeLabel(scope: InventoryScope) {
+  return {
+    ACTIVE_MANAGED: "当前在管",
+    ALL_BUILDING: "整栋底表",
+    PIPELINE: "储备与待上线",
+    EXITED: "退场历史",
+  }[scope];
+}
+
+function scopeDescription(scope: InventoryScope) {
+  return {
+    ACTIVE_MANAGED: "只统计当前由我们实际在管的房间",
+    ALL_BUILDING: "查看整栋房号底表，不代表都在当前经营池内",
+    PIPELINE: "查看待签约、待上线、暂停或尚未接入经营的房间",
+    EXITED: "查看历史退场房源，保留房号和历史建档状态",
+  }[scope];
+}
+
+export async function getRoomEconomicsOverview(
+  propertyId: string,
+  year: number,
+  month?: number,
+  scope: InventoryScope = "ACTIVE_MANAGED",
+  asOfDate?: Date,
+) {
   const property = assertPresent(
     await prisma.property.findUnique({
       where: { id: propertyId },
@@ -103,6 +150,9 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
               },
               orderBy: [{ periodMonth: "asc" }, { operatingMode: "asc" }],
             },
+            managementAssignments: {
+              orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
+            },
           },
           orderBy: { roomNo: "asc" },
         },
@@ -112,8 +162,9 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
   );
 
   const periods = month ? 1 : 12;
+  const asOf = asOfDate ?? new Date();
 
-  const rooms = property.rooms.map((room) => {
+  const allRooms = property.rooms.map((room) => {
     const monthlyCost = monthlyCostTotal(room.costProfile);
     const fixedCost = monthlyCost * periods;
     const revenueByMode = emptyModeRevenue();
@@ -127,6 +178,7 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
     const grossProfit = totalRevenue - fixedCost;
     const margin = totalRevenue > 0 ? grossProfit / totalRevenue : null;
     const monthMix = buildMonthMix(room.revenueEntries);
+    const management = resolveManagementSnapshot(room.managementAssignments, asOf);
 
     const mixSummary = {
       dailyMonths: monthMix.filter((item) => item.mode === "DAILY").length,
@@ -143,6 +195,7 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
       areaSqm: room.areaSqm,
       roomStatus: room.roomStatus,
       sellableStatus: room.sellableStatus,
+      management,
       monthlyCost: {
         rent: room.costProfile?.monthlyRentCost ?? 0,
         propertyFee: room.costProfile?.monthlyPropertyFeeCost ?? 0,
@@ -170,20 +223,22 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
     };
   });
 
-  const totalRevenue = rooms.reduce((sum, room) => sum + room.revenue.total, 0);
-  const totalFixedCost = rooms.reduce((sum, room) => sum + room.fixedCost, 0);
+  const filteredRooms = allRooms.filter((room) => matchesInventoryScope(scope, room.management));
+
+  const totalRevenue = filteredRooms.reduce((sum, room) => sum + room.revenue.total, 0);
+  const totalFixedCost = filteredRooms.reduce((sum, room) => sum + room.fixedCost, 0);
   const grossProfit = totalRevenue - totalFixedCost;
-  const profitableRooms = rooms.filter((room) => room.profitability.grossProfit > 0).length;
-  const lossRooms = rooms.filter((room) => room.profitability.grossProfit < 0).length;
-  const hasEconomicsData = rooms.some((room) => room.revenue.total !== 0 || room.fixedCost !== 0);
+  const profitableRooms = filteredRooms.filter((room) => room.profitability.grossProfit > 0).length;
+  const lossRooms = filteredRooms.filter((room) => room.profitability.grossProfit < 0).length;
+  const hasEconomicsData = filteredRooms.some((room) => room.revenue.total !== 0 || room.fixedCost !== 0);
   const bestRoom = hasEconomicsData
-    ? [...rooms].sort((left, right) => right.profitability.grossProfit - left.profitability.grossProfit)[0] ?? null
+    ? [...filteredRooms].sort((left, right) => right.profitability.grossProfit - left.profitability.grossProfit)[0] ?? null
     : null;
   const worstRoom = hasEconomicsData
-    ? [...rooms].sort((left, right) => left.profitability.grossProfit - right.profitability.grossProfit)[0] ?? null
+    ? [...filteredRooms].sort((left, right) => left.profitability.grossProfit - right.profitability.grossProfit)[0] ?? null
     : null;
 
-  const modeTotals = rooms.reduce(
+  const modeTotals = filteredRooms.reduce(
     (accumulator, room) => {
       accumulator.DAILY += room.revenue.byMode.DAILY;
       accumulator.SHORT_STAY += room.revenue.byMode.SHORT_STAY;
@@ -192,6 +247,11 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
     },
     emptyModeRevenue(),
   );
+
+  const managementSummary = managementSummaryFromSnapshots(allRooms.map((room) => room.management));
+  const activeSellableRooms = allRooms.filter(
+    (room) => room.management.status === "ACTIVE" && room.sellableStatus === "SELLABLE",
+  ).length;
 
   return {
     property: {
@@ -205,7 +265,13 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
       year,
       month: month ?? null,
       periods,
+      asOf: asOf.toISOString(),
       label: month ? `${year}-${String(month).padStart(2, "0")}` : `${year} 全年`,
+    },
+    scope: {
+      code: scope,
+      label: scopeLabel(scope),
+      description: scopeDescription(scope),
     },
     summary: {
       totalRevenue,
@@ -213,6 +279,12 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
       grossProfit,
       profitableRooms,
       lossRooms,
+      totalRoomsInScope: filteredRooms.length,
+      totalBuildingRooms: allRooms.length,
+      management: {
+        ...managementSummary,
+        activeSellableRooms,
+      },
       revenueByMode: modeTotals,
       bestRoom: bestRoom
         ? {
@@ -227,6 +299,6 @@ export async function getRoomEconomicsOverview(propertyId: string, year: number,
           }
         : null,
     },
-    rooms,
+    rooms: filteredRooms,
   };
 }

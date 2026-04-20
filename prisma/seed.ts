@@ -3,6 +3,7 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import {
   BookingStatus,
+  ManagementStatus,
   RoomStatus,
   SellableStatus,
   SourceSystem,
@@ -34,7 +35,21 @@ type RoomPlan = {
     monthlyOtherCost: number;
     notes: string;
   };
+  managementAssignment: {
+    managementStatus: ManagementStatus;
+    ownerName: string | null;
+    ownerPhone: string | null;
+    acquireMode: string | null;
+    effectiveFrom: Date;
+    effectiveTo: Date | null;
+    notes: string | null;
+  };
 };
+
+function importedText(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
 
 function parseArg(flag: string) {
   const argv = process.argv.slice(2);
@@ -62,10 +77,6 @@ function readSeedOptions(): SeedOptions {
     roomCount: parseInteger(parseArg("--rooms") ?? process.env.SEED_ROOM_COUNT, DEFAULT_ROOM_COUNT),
     year: parseInteger(parseArg("--year") ?? process.env.SEED_YEAR, 2026),
   };
-}
-
-function roomFloor(roomNo: string) {
-  return Number.parseInt(roomNo.slice(0, -2), 10) || 0;
 }
 
 function roomTypeForRoomNo(roomNo: string) {
@@ -134,7 +145,99 @@ function emptyCostProfile() {
   };
 }
 
+function plusDays(base: Date, days: number) {
+  const value = new Date(base);
+  value.setDate(value.getDate() + days);
+  return value;
+}
+
+function managementAssignmentFor(
+  room: (typeof KAIYAN_OWNER_ROOM_LIST)[number],
+  index: number,
+  now: Date,
+) {
+  const activeLimit = 42;
+  const readyLimit = activeLimit + 8;
+  const negotiatingLimit = readyLimit + 12;
+  const pausedLimit = negotiatingLimit + 6;
+  const exitedLimit = pausedLimit + 16;
+  const ownerName = importedText(room.ownerName);
+  const ownerPhone = importedText(room.ownerContact);
+
+  if (index < activeLimit) {
+    return {
+      managementStatus: ManagementStatus.ACTIVE,
+      ownerName,
+      ownerPhone,
+      acquireMode: index % 2 === 0 ? "DIRECT_LEASE" : "OWNER_AUTHORIZATION",
+      effectiveFrom: plusDays(now, -120 - (index % 45)),
+      effectiveTo: null,
+      notes: "当前在管房源",
+    };
+  }
+
+  if (index < readyLimit) {
+    return {
+      managementStatus: ManagementStatus.READY,
+      ownerName,
+      ownerPhone,
+      acquireMode: "DIRECT_LEASE",
+      effectiveFrom: plusDays(now, 3 + (index % 9)),
+      effectiveTo: null,
+      notes: "已谈定，待上线",
+    };
+  }
+
+  if (index < negotiatingLimit) {
+    return {
+      managementStatus: ManagementStatus.NEGOTIATING,
+      ownerName,
+      ownerPhone,
+      acquireMode: "OWNER_AUTHORIZATION",
+      effectiveFrom: plusDays(now, index % 5),
+      effectiveTo: null,
+      notes: "正在洽谈租入条件",
+    };
+  }
+
+  if (index < pausedLimit) {
+    return {
+      managementStatus: ManagementStatus.PAUSED,
+      ownerName,
+      ownerPhone,
+      acquireMode: "DIRECT_LEASE",
+      effectiveFrom: plusDays(now, -180 - (index % 20)),
+      effectiveTo: null,
+      notes: "暂时停运，等待重新定价或整备",
+    };
+  }
+
+  if (index < exitedLimit) {
+    return {
+      managementStatus: ManagementStatus.EXITED,
+      ownerName,
+      ownerPhone,
+      acquireMode: "DIRECT_LEASE",
+      effectiveFrom: plusDays(now, -240 - (index % 30)),
+      effectiveTo: plusDays(now, -20 - (index % 10)),
+      notes: "历史退场房源",
+    };
+  }
+
+  return {
+    managementStatus: ManagementStatus.POTENTIAL,
+    ownerName,
+    ownerPhone,
+    acquireMode: "UNDECIDED",
+    effectiveFrom: now,
+    effectiveTo: null,
+    notes: "仅在楼盘底表，尚未进入经营池",
+  };
+}
+
 function createRoomPlans(roomCount: number): RoomPlan[] {
+  const today = new Date();
+
   return KAIYAN_OWNER_ROOM_LIST.slice(0, roomCount).map((room, index) => {
     const status = roomStatusFor(index);
 
@@ -144,6 +247,7 @@ function createRoomPlans(roomCount: number): RoomPlan[] {
       areaSqm: room.areaSqm,
       ...status,
       costProfile: emptyCostProfile(),
+      managementAssignment: managementAssignmentFor(room, index, today),
     };
   });
 }
@@ -160,22 +264,28 @@ function atTime(base: Date, hour: number, minute: number) {
   return value;
 }
 
-function plusDays(base: Date, days: number) {
-  const value = new Date(base);
-  value.setDate(value.getDate() + days);
-  return value;
-}
-
 async function seedRealtimeOperations(propertyId: string, roomCount: number) {
+  const today = startOfDay(new Date());
+
   const sellableRooms = await prisma.room.findMany({
     where: {
       propertyId,
       sellableStatus: SellableStatus.SELLABLE,
+      managementAssignments: {
+        some: {
+          managementStatus: ManagementStatus.ACTIVE,
+          effectiveFrom: { lte: today },
+          OR: [
+            { effectiveTo: null },
+            { effectiveTo: { gte: today } },
+          ],
+        },
+      },
     },
     orderBy: { roomNo: "asc" },
   });
 
-  const guestCount = Math.max(60, Math.ceil(roomCount * 0.35));
+  const guestCount = Math.max(40, Math.ceil(roomCount * 0.12));
   await prisma.guest.createMany({
     data: Array.from({ length: guestCount }, (_, index) => ({
       name: `住客${String(index + 1).padStart(3, "0")}`,
@@ -189,12 +299,11 @@ async function seedRealtimeOperations(propertyId: string, roomCount: number) {
     orderBy: { createdAt: "asc" },
   });
 
-  const today = startOfDay(new Date());
-  const arrivalRooms = sellableRooms.slice(0, Math.min(18, sellableRooms.length));
-  const departureRooms = sellableRooms.slice(arrivalRooms.length, arrivalRooms.length + 14);
+  const arrivalRooms = sellableRooms.slice(0, Math.min(8, sellableRooms.length));
+  const departureRooms = sellableRooms.slice(arrivalRooms.length, arrivalRooms.length + 6);
   const inHouseRooms = sellableRooms.slice(
     arrivalRooms.length + departureRooms.length,
-    arrivalRooms.length + departureRooms.length + 36,
+    arrivalRooms.length + departureRooms.length + 12,
   );
 
   const bookings: Array<{
@@ -343,6 +452,13 @@ async function seedRealtimeOperations(propertyId: string, roomCount: number) {
       roomStatus: {
         in: [RoomStatus.VACANT_DIRTY, RoomStatus.MAINTENANCE, RoomStatus.OUT_OF_SERVICE],
       },
+      managementAssignments: {
+        some: {
+          managementStatus: ManagementStatus.ACTIVE,
+          effectiveFrom: { lte: today },
+          OR: [{ effectiveTo: null }, { effectiveTo: { gte: today } }],
+        },
+      },
     },
     orderBy: { roomNo: "asc" },
     take: 24,
@@ -379,6 +495,7 @@ async function main() {
   await prisma.checkInRecord.deleteMany();
   await prisma.roomRevenueEntry.deleteMany();
   await prisma.roomCostProfile.deleteMany();
+  await prisma.roomManagementAssignment.deleteMany();
   await prisma.occupancyLedger.deleteMany();
   await prisma.inventoryLock.deleteMany();
   await prisma.booking.deleteMany();
@@ -429,6 +546,23 @@ async function main() {
     }),
   });
 
+  await prisma.roomManagementAssignment.createMany({
+    data: rooms.map((room) => {
+      const plan = planByRoomNo.get(room.roomNo)!;
+      return {
+        propertyId: property.id,
+        roomId: room.id,
+        managementStatus: plan.managementAssignment.managementStatus,
+        ownerName: plan.managementAssignment.ownerName,
+        ownerPhone: plan.managementAssignment.ownerPhone,
+        acquireMode: plan.managementAssignment.acquireMode,
+        effectiveFrom: plan.managementAssignment.effectiveFrom,
+        effectiveTo: plan.managementAssignment.effectiveTo,
+        notes: plan.managementAssignment.notes,
+      };
+    }),
+  });
+
   const password = process.env.FRONTDESK_DEMO_PASSWORD ?? "frontdesk123";
   const operator = await prisma.operator.create({
     data: {
@@ -441,6 +575,9 @@ async function main() {
   });
 
   const operations = await seedRealtimeOperations(property.id, roomPlans.length);
+  const activeManagedRooms = roomPlans.filter(
+    (plan) => plan.managementAssignment.managementStatus === ManagementStatus.ACTIVE,
+  ).length;
 
   console.log("Seed completed");
   console.log({
@@ -450,6 +587,7 @@ async function main() {
       password,
     },
     roomCount: roomPlans.length,
+    activeManagedRooms,
     economicsYear: options.year,
     revenueEntryCount: 0,
     sampleGuestId: operations.guestSampleId,
@@ -457,7 +595,7 @@ async function main() {
     arrivals: operations.arrivalsCount,
     departures: operations.departuresCount,
     inHouse: operations.inHouseCount,
-    economicsMode: "ZERO_BASELINE",
+    economicsMode: "ZERO_BASELINE_MANAGED_POOL",
   });
 }
 

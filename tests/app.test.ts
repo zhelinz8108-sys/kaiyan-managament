@@ -38,6 +38,7 @@ describe("hotel apartment api", () => {
     await prisma.checkInRecord.deleteMany();
     await prisma.roomRevenueEntry.deleteMany();
     await prisma.roomCostProfile.deleteMany();
+    await prisma.roomManagementAssignment.deleteMany();
     await prisma.occupancyLedger.deleteMany();
     await prisma.inventoryLock.deleteMany();
     await prisma.booking.deleteMany();
@@ -66,6 +67,18 @@ describe("hotel apartment api", () => {
         areaSqm: 68.5,
         roomStatus: "VACANT_CLEAN",
         sellableStatus: "SELLABLE",
+      },
+    });
+
+    await prisma.roomManagementAssignment.create({
+      data: {
+        propertyId: property.id,
+        roomId: room.id,
+        managementStatus: "ACTIVE",
+        ownerName: "测试业主",
+        ownerPhone: "13900000001",
+        acquireMode: "DIRECT_LEASE",
+        effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
       },
     });
 
@@ -234,6 +247,137 @@ describe("hotel apartment api", () => {
     expect(payload.data.summary.bestRoom).toBeNull();
     expect(payload.data.summary.worstRoom).toBeNull();
     expect(payload.data.rooms[0].profitability.status).toBe("BREAKEVEN");
+    expect(payload.data.scope.code).toBe("ACTIVE_MANAGED");
+    await app.close();
+  });
+
+  it("serves a custom login page and authorizes access with a web admin session", async () => {
+    process.env.WEB_ADMIN_USERNAME = "kaiyan-admin";
+    process.env.WEB_ADMIN_PASSWORD = "19491001Zsf@@";
+    process.env.WEB_ADMIN_SESSION_SECRET = "test-session-secret";
+
+    const app = await createApp();
+
+    const gatedPage = await app.inject({
+      method: "GET",
+      url: "/economics/",
+    });
+
+    expect(gatedPage.statusCode).toBe(302);
+    expect(gatedPage.headers.location).toContain("/login/");
+
+    const loginPage = await app.inject({
+      method: "GET",
+      url: "/login/",
+    });
+
+    expect(loginPage.statusCode).toBe(200);
+    expect(loginPage.body).toContain("登录后台");
+
+    const loginResponse = await app.inject({
+      method: "POST",
+      url: "/api/v1/web-admin/session",
+      payload: {
+        username: "kaiyan-admin",
+        password: "19491001Zsf@@",
+        next: "/economics/",
+      },
+    });
+
+    expect(loginResponse.statusCode).toBe(200);
+    const sessionCookie = loginResponse.headers["set-cookie"];
+    expect(sessionCookie).toContain("kaiyan_admin_session=");
+
+    const authorizedPage = await app.inject({
+      method: "GET",
+      url: "/economics/",
+      headers: {
+        cookie: Array.isArray(sessionCookie) ? sessionCookie[0] : String(sessionCookie),
+      },
+    });
+
+    expect(authorizedPage.statusCode).toBe(200);
+    expect(authorizedPage.body).toContain("退出登录");
+
+    delete process.env.WEB_ADMIN_USERNAME;
+    delete process.env.WEB_ADMIN_PASSWORD;
+    delete process.env.WEB_ADMIN_SESSION_SECRET;
+
+    await app.close();
+  });
+
+  it("defaults economics scope to active managed rooms", async () => {
+    const app = await createApp();
+
+    const reserveRoom = await prisma.room.create({
+      data: {
+        propertyId: testData.propertyId,
+        roomNo: "1202",
+        roomType: "大床房",
+        areaSqm: 66.5,
+        roomStatus: "VACANT_CLEAN",
+        sellableStatus: "SELLABLE",
+      },
+    });
+
+    await prisma.roomManagementAssignment.create({
+      data: {
+        propertyId: testData.propertyId,
+        roomId: reserveRoom.id,
+        managementStatus: "POTENTIAL",
+        ownerName: "储备业主",
+        effectiveFrom: new Date("2026-04-20T00:00:00.000Z"),
+      },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/v1/asset/room-economics?property_id=${testData.propertyId}&year=2026`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = response.json();
+    expect(payload.data.rooms).toHaveLength(1);
+    expect(payload.data.rooms[0].roomNo).toBe("1201");
+    expect(payload.data.summary.management.activeManagedRooms).toBe(1);
+    expect(payload.data.summary.management.potentialRooms).toBe(1);
+    await app.close();
+  });
+
+  it("returns whole building inventory when scope is all building", async () => {
+    const app = await createApp();
+
+    const reserveRoom = await prisma.room.create({
+      data: {
+        propertyId: testData.propertyId,
+        roomNo: "1202",
+        roomType: "大床房",
+        areaSqm: 66.5,
+        roomStatus: "VACANT_CLEAN",
+        sellableStatus: "SELLABLE",
+      },
+    });
+
+    await prisma.roomManagementAssignment.create({
+      data: {
+        propertyId: testData.propertyId,
+        roomId: reserveRoom.id,
+        managementStatus: "POTENTIAL",
+        ownerName: "储备业主",
+        effectiveFrom: new Date("2026-04-20T00:00:00.000Z"),
+      },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/v1/asset/room-economics?property_id=${testData.propertyId}&year=2026&inventory_scope=ALL_BUILDING`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = response.json();
+    expect(payload.data.rooms).toHaveLength(2);
+    expect(payload.data.summary.totalBuildingRooms).toBe(2);
+    expect(payload.data.scope.code).toBe("ALL_BUILDING");
     await app.close();
   });
 
@@ -250,6 +394,10 @@ describe("hotel apartment api", () => {
       operationState: "IN_SERVICE",
     }));
 
+    await prisma.roomManagementAssignment.deleteMany({
+      where: { roomId: testData.roomId },
+    });
+
     await prisma.room.delete({
       where: { id: testData.roomId },
     });
@@ -261,6 +409,16 @@ describe("hotel apartment api", () => {
     const rooms = await prisma.room.findMany({
       where: { propertyId: testData.propertyId },
       orderBy: { roomNo: "asc" },
+    });
+
+    await prisma.roomManagementAssignment.createMany({
+      data: rooms.map((room) => ({
+        propertyId: testData.propertyId,
+        roomId: room.id,
+        managementStatus: "ACTIVE",
+        ownerName: "批量业主",
+        effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
+      })),
     });
 
     await prisma.roomCostProfile.createMany({

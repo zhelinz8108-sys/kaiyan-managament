@@ -11,3 +11,5 @@ coverage
 .codex-*.log
 .codex-dev.log
 .codex-dev.err.log
+kaiyan-deploy.tgz
+*.tgz

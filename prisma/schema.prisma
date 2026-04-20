@@ -114,39 +114,50 @@ enum OperatingMode {
   LONG_STAY
 }
 
+enum ManagementStatus {
+  POTENTIAL
+  NEGOTIATING
+  READY
+  ACTIVE
+  PAUSED
+  EXITED
+}
+
 model Property {
-  id        String    @id @default(cuid())
-  name      String
-  city      String
-  timezone  String
-  currency  String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  rooms     Room[]
-  operators Operator[]
-  bookings  Booking[]
+  id                    String                    @id @default(cuid())
+  name                  String
+  city                  String
+  timezone              String
+  currency              String
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  rooms                 Room[]
+  operators             Operator[]
+  bookings              Booking[]
+  managementAssignments RoomManagementAssignment[]
 }
 
 model Room {
-  id             String          @id @default(cuid())
-  propertyId     String
-  roomNo         String
-  roomType       String
-  areaSqm        Float           @default(0)
-  roomStatus     RoomStatus
-  sellableStatus SellableStatus
-  operationState String          @default("IN_SERVICE")
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  property       Property        @relation(fields: [propertyId], references: [id])
-  locks          InventoryLock[]
-  occupancies    OccupancyLedger[]
-  bookings       Booking[]
-  checkIns       CheckInRecord[]
-  folios         Folio[]
-  statusEvents   RoomStatusEvent[]
-  costProfile    RoomCostProfile?
-  revenueEntries RoomRevenueEntry[]
+  id                    String                    @id @default(cuid())
+  propertyId            String
+  roomNo                String
+  roomType              String
+  areaSqm               Float                     @default(0)
+  roomStatus            RoomStatus
+  sellableStatus        SellableStatus
+  operationState        String                    @default("IN_SERVICE")
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  property              Property                  @relation(fields: [propertyId], references: [id])
+  locks                 InventoryLock[]
+  occupancies           OccupancyLedger[]
+  bookings              Booking[]
+  checkIns              CheckInRecord[]
+  folios                Folio[]
+  statusEvents          RoomStatusEvent[]
+  costProfile           RoomCostProfile?
+  revenueEntries        RoomRevenueEntry[]
+  managementAssignments RoomManagementAssignment[]
 
   @@unique([propertyId, roomNo])
 }
@@ -358,4 +369,24 @@ model RoomRevenueEntry {
   room              Room          @relation(fields: [roomId], references: [id])
 
   @@unique([roomId, periodYear, periodMonth, operatingMode])
+}
+
+model RoomManagementAssignment {
+  id               String           @id @default(cuid())
+  propertyId       String
+  roomId           String
+  managementStatus ManagementStatus
+  ownerName        String?
+  ownerPhone       String?
+  acquireMode      String?
+  effectiveFrom    DateTime
+  effectiveTo      DateTime?
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  property         Property         @relation(fields: [propertyId], references: [id])
+  room             Room             @relation(fields: [roomId], references: [id])
+
+  @@index([propertyId, managementStatus])
+  @@index([roomId, effectiveFrom])
 }

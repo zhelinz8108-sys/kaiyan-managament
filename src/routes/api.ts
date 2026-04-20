@@ -1,4 +1,4 @@
-import { PaymentMethod, SourceSystem } from "@prisma/client";
+import { ManagementStatus, PaymentMethod, SourceSystem } from "@prisma/client";
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 
@@ -25,9 +25,11 @@ import {
 import { createInventoryLock } from "../services/inventory-service.js";
 import { getRoomEconomicsOverview } from "../services/economics-service.js";
 import { upsertRoomCostProfile } from "../services/room-cost-service.js";
+import { upsertRoomManagementAssignment } from "../services/room-management-service.js";
 
 const sourceSystemEnum = z.nativeEnum(SourceSystem);
 const paymentMethodEnum = z.nativeEnum(PaymentMethod);
+const managementStatusEnum = z.nativeEnum(ManagementStatus);
 
 export async function registerApiRoutes(app: FastifyInstance) {
   app.get("/health", async () => ({
@@ -46,6 +48,9 @@ export async function registerApiRoutes(app: FastifyInstance) {
         occupancies: {
           where: { status: "ACTIVE" },
           orderBy: { startAt: "asc" },
+        },
+        managementAssignments: {
+          orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
         },
       },
     });
@@ -92,6 +97,39 @@ export async function registerApiRoutes(app: FastifyInstance) {
       message: "success",
       trace_id: buildTraceId(),
       data: profile,
+    };
+  });
+
+  app.post("/api/v1/rooms/:id/management-assignments", async (request) => {
+    const params = z.object({ id: z.string().min(1) }).parse(request.params);
+    const body = z
+      .object({
+        management_status: managementStatusEnum,
+        effective_from: z.coerce.date(),
+        effective_to: z.coerce.date().optional(),
+        owner_name: z.string().max(120).optional(),
+        owner_phone: z.string().max(40).optional(),
+        acquire_mode: z.string().max(80).optional(),
+        notes: z.string().max(500).optional(),
+      })
+      .parse(request.body);
+
+    const assignment = await upsertRoomManagementAssignment({
+      roomId: params.id,
+      managementStatus: body.management_status,
+      effectiveFrom: body.effective_from,
+      effectiveTo: body.effective_to,
+      ownerName: body.owner_name,
+      ownerPhone: body.owner_phone,
+      acquireMode: body.acquire_mode,
+      notes: body.notes,
+    });
+
+    return {
+      code: "OK",
+      message: "success",
+      trace_id: buildTraceId(),
+      data: assignment,
     };
   });
 
@@ -476,6 +514,10 @@ export async function registerApiRoutes(app: FastifyInstance) {
         property_id: z.string().min(1),
         year: z.coerce.number().int().min(2000).max(2100).default(new Date().getFullYear()),
         month: z.coerce.number().int().min(1).max(12).optional(),
+        inventory_scope: z
+          .enum(["ACTIVE_MANAGED", "ALL_BUILDING", "PIPELINE", "EXITED"])
+          .default("ACTIVE_MANAGED"),
+        as_of: z.coerce.date().optional(),
       })
       .parse(request.query);
 
@@ -483,7 +525,13 @@ export async function registerApiRoutes(app: FastifyInstance) {
       code: "OK",
       message: "success",
       trace_id: buildTraceId(),
-      data: await getRoomEconomicsOverview(query.property_id, query.year, query.month),
+      data: await getRoomEconomicsOverview(
+        query.property_id,
+        query.year,
+        query.month,
+        query.inventory_scope,
+        query.as_of,
+      ),
     };
   });
 }
