@@ -7,42 +7,86 @@
     <link rel="stylesheet" href="/economics/styles.css" />
   </head>
   <body>
+    <div class="page-glow page-glow-left" aria-hidden="true"></div>
+    <div class="page-glow page-glow-right" aria-hidden="true"></div>
+
     <main class="economics-shell">
-      <header class="dashboard-header">
-        <div class="header-copy">
-          <p class="kicker">Room Economics</p>
-          <h1 id="propertyName">加载中...</h1>
-          <p class="header-meta" id="periodLabel">正在汇总房间收益、固定成本与利润表现</p>
-        </div>
-        <div class="header-actions">
-          <button id="filterToggleButton" class="secondary-button" type="button">更多筛选</button>
-          <button id="clearFiltersButton" class="secondary-button" type="button">重置筛选</button>
-          <button id="refreshButton" class="refresh-button" type="button">刷新数据</button>
-        </div>
-      </header>
+      <section class="hero-band">
+        <header class="dashboard-header">
+          <div class="header-copy">
+            <p class="kicker">Room Economics</p>
+            <div class="headline-row">
+              <h1 id="propertyName">加载中...</h1>
+              <span class="period-chip" id="periodChip">年度经营</span>
+            </div>
+            <p class="header-meta" id="periodLabel">正在汇总房间收益、固定成本与利润表现</p>
+          </div>
+          <div class="header-actions">
+            <a class="secondary-button nav-link" href="/frontdesk/">前台面板</a>
+            <button id="filterToggleButton" class="secondary-button" type="button">更多筛选</button>
+            <button id="clearFiltersButton" class="secondary-button" type="button">重置筛选</button>
+            <button id="refreshButton" class="refresh-button" type="button">刷新分析</button>
+          </div>
+        </header>
+
+        <aside class="watch-panel">
+          <div class="watch-header">
+            <div>
+              <p class="kicker">Portfolio Pulse</p>
+              <h2>本期关注清单</h2>
+            </div>
+            <span class="watch-badge">逐套排查</span>
+          </div>
+
+          <div class="watch-grid">
+            <article class="watch-stat watch-stat-loss">
+              <span>亏损房</span>
+              <strong id="watchLoss">--</strong>
+              <small>优先核对成本与租型</small>
+            </article>
+            <article class="watch-stat watch-stat-idle">
+              <span>空置月房</span>
+              <strong id="watchIdle">--</strong>
+              <small>适合先看招商和定价</small>
+            </article>
+            <article class="watch-stat watch-stat-thin">
+              <span>薄利房</span>
+              <strong id="watchThin">--</strong>
+              <small>重点压缩隐性支出</small>
+            </article>
+            <article class="watch-stat watch-stat-mixed">
+              <span>混合经营</span>
+              <strong id="watchMixed">--</strong>
+              <small>检查切换节奏是否合理</small>
+            </article>
+          </div>
+
+          <p class="watch-note" id="watchNote">正在生成本期经营建议...</p>
+        </aside>
+      </section>
 
       <section class="setup-banner" id="setupBanner" hidden>
         <p class="setup-banner-title">当前还是空白底稿</p>
-        <p class="setup-banner-copy">先选楼层，再展开房间逐套录入成本或收益；默认不展开任何一层，避免首页堆满信息。</p>
+        <p class="setup-banner-copy">先从任意楼层开始逐套录入成本或收益；页面会先把可见楼层展开，方便你直接检查房间是否完整。</p>
       </section>
 
       <section class="summary-grid">
-        <article class="summary-card">
+        <article class="summary-card summary-card-revenue">
           <span>全年收益</span>
           <strong id="totalRevenue">--</strong>
           <small>房间收益汇总</small>
         </article>
-        <article class="summary-card">
+        <article class="summary-card summary-card-cost">
           <span>全年固定成本</span>
           <strong id="totalFixedCost">--</strong>
           <small>月租、物业、保洁、维修、水电等</small>
         </article>
-        <article class="summary-card">
+        <article class="summary-card summary-card-profit">
           <span>毛利 / 毛亏</span>
           <strong id="grossProfit">--</strong>
           <small id="profitabilityTag">--</small>
         </article>
-        <article class="summary-card">
+        <article class="summary-card summary-card-rooms">
           <span>盈利房间数</span>
           <strong id="profitableRooms">--</strong>
           <small id="lossRooms">--</small>

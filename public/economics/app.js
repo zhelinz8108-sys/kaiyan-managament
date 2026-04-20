@@ -17,10 +17,12 @@ const state = {
   filters: createDefaultFilters(),
   filtersPanelOpen: false,
   expandedFloors: new Set(),
+  hasAutoExpandedFloors: false,
 };
 
 const el = {
   propertyName: document.querySelector("#propertyName"),
+  periodChip: document.querySelector("#periodChip"),
   periodLabel: document.querySelector("#periodLabel"),
   filterToggleButton: document.querySelector("#filterToggleButton"),
   clearFiltersButton: document.querySelector("#clearFiltersButton"),
@@ -41,6 +43,11 @@ const el = {
   longStayRevenue: document.querySelector("#longStayRevenue"),
   bestWorst: document.querySelector("#bestWorst"),
   bestWorstMeta: document.querySelector("#bestWorstMeta"),
+  watchLoss: document.querySelector("#watchLoss"),
+  watchIdle: document.querySelector("#watchIdle"),
+  watchThin: document.querySelector("#watchThin"),
+  watchMixed: document.querySelector("#watchMixed"),
+  watchNote: document.querySelector("#watchNote"),
   roomSearch: document.querySelector("#roomSearch"),
   profitFilters: document.querySelector("#profitFilters"),
   modeFilters: document.querySelector("#modeFilters"),
@@ -450,6 +457,7 @@ function renderHeader() {
 
   document.title = property.name;
   el.propertyName.textContent = property.name;
+  el.periodChip.textContent = period.label;
   el.periodLabel.textContent =
     blankBaseline
       ? `${period.label} · 当前还没有录入任何收益或成本，先从楼层开始。`
@@ -557,6 +565,7 @@ function renderWatchPanel() {
   const idleCount = rooms.filter((room) => room.mixSummary.idleMonths > 0).length;
   const thinCount = rooms.filter(isThinMargin).length;
   const mixedCount = rooms.filter((room) => dominantMode(room) === "MIXED").length;
+  const blankBaseline = isBlankBaseline(state.overview.summary);
 
   el.watchLoss.textContent = `${lossCount} 间`;
   el.watchIdle.textContent = `${idleCount} 间`;
@@ -565,9 +574,11 @@ function renderWatchPanel() {
 
   const best = state.overview.summary.bestRoom;
   const worst = state.overview.summary.worstRoom;
-  el.watchNote.textContent = best && worst
-    ? `当前最强房间是 ${best.roomNo}，最弱房间是 ${worst.roomNo}。建议优先筛出亏损和薄利房查看详情。`
-    : "当前暂无经营提示。";
+  el.watchNote.textContent = blankBaseline
+    ? "当前还是零基线台账，建议先从一层开始录入月成本，再逐步补齐收益端，首页就会形成可读的经营画像。"
+    : best && worst
+      ? `当前最强房间是 ${best.roomNo}，最弱房间是 ${worst.roomNo}。建议优先筛出亏损和薄利房查看详情，再复核混合经营房的切换节奏。`
+      : "当前暂无经营提示。";
 }
 
 function roomMatchesFilters(room) {
@@ -646,6 +657,13 @@ function syncExpandedFloors(floors) {
 
   if (state.filters.floor !== "ALL" && visibleFloors.has(state.filters.floor)) {
     state.expandedFloors = new Set([state.filters.floor]);
+    state.hasAutoExpandedFloors = true;
+    return;
+  }
+
+  if (!state.hasAutoExpandedFloors && state.expandedFloors.size === 0) {
+    state.expandedFloors = new Set(floors);
+    state.hasAutoExpandedFloors = true;
   }
 }
 
@@ -892,6 +910,7 @@ function bindControls() {
     state.filters = createDefaultFilters();
     state.filtersPanelOpen = false;
     state.expandedFloors = new Set();
+    state.hasAutoExpandedFloors = false;
     renderControls();
     renderSummary();
     renderLedger();
@@ -950,6 +969,7 @@ async function loadOverview() {
 
   renderHeader();
   renderSummary();
+  renderWatchPanel();
   renderControls();
   renderLedger();
 
