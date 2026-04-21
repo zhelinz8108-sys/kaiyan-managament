@@ -3,19 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>凯燕环球中心 - 安全登录</title>
+    <title>凯燕环球中心 - 登录</title>
     <style>
       :root {
         color-scheme: light;
-        --bg: #f6f1e8;
-        --panel: rgba(255, 252, 247, 0.84);
-        --panel-border: rgba(107, 76, 46, 0.14);
-        --text: #221d19;
-        --muted: #7f6f61;
-        --accent: #1d6a73;
-        --accent-strong: #12484f;
-        --accent-soft: rgba(29, 106, 115, 0.12);
-        --shadow: 0 28px 60px rgba(83, 58, 34, 0.16);
+        --bg: #f7f3ed;
+        --panel: rgba(255, 255, 255, 0.92);
+        --panel-border: rgba(39, 59, 53, 0.08);
+        --text: #1f1a16;
+        --muted: #8b7b6c;
+        --accent: #1f7b84;
+        --accent-strong: #155b61;
+        --accent-soft: rgba(31, 123, 132, 0.12);
+        --shadow: 0 28px 60px rgba(87, 64, 42, 0.14);
       }
 
       * {
@@ -27,126 +27,60 @@
         min-height: 100vh;
         font-family: "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
         background:
-          radial-gradient(circle at top left, rgba(23, 80, 87, 0.22), transparent 34%),
-          radial-gradient(circle at 80% 12%, rgba(204, 142, 83, 0.22), transparent 26%),
-          linear-gradient(180deg, #faf6ef 0%, var(--bg) 100%);
+          radial-gradient(circle at top left, rgba(37, 108, 106, 0.12), transparent 30%),
+          radial-gradient(circle at top right, rgba(213, 161, 101, 0.12), transparent 24%),
+          linear-gradient(180deg, #fbf8f2 0%, var(--bg) 100%);
         color: var(--text);
         display: grid;
         place-items: center;
-        padding: 32px;
+        padding: 24px;
       }
 
-      .shell {
-        width: min(1040px, 100%);
-        display: grid;
-        grid-template-columns: 1.08fr 0.92fr;
-        border-radius: 34px;
-        overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.65);
-        background: rgba(255, 255, 255, 0.36);
+      .login-card {
+        width: min(420px, 100%);
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 28px;
         box-shadow: var(--shadow);
-        backdrop-filter: blur(22px);
+        backdrop-filter: blur(18px);
+        padding: 40px 34px 32px;
       }
 
       .brand {
-        padding: 52px 48px;
-        background:
-          linear-gradient(155deg, rgba(23, 59, 55, 0.96), rgba(60, 73, 44, 0.88)),
-          linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0));
-        color: #f7f2ec;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        min-height: 640px;
-      }
-
-      .eyebrow {
-        font-size: 13px;
-        letter-spacing: 0.24em;
+        margin: 0 0 22px;
+        font-size: 15px;
+        letter-spacing: 0.18em;
         text-transform: uppercase;
-        opacity: 0.72;
-        margin-bottom: 22px;
+        color: var(--muted);
       }
 
-      .brand h1 {
-        margin: 0;
-        font-size: clamp(52px, 5vw, 78px);
-        line-height: 0.94;
-        letter-spacing: -0.04em;
-      }
-
-      .brand-copy {
-        max-width: 460px;
-        margin-top: 28px;
-        font-size: 28px;
-        line-height: 1.45;
-        color: rgba(247, 242, 236, 0.86);
-      }
-
-      .brand-footer {
-        display: grid;
-        gap: 18px;
-        margin-top: 56px;
-      }
-
-      .badge-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-      }
-
-      .badge {
-        padding: 11px 16px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
-        color: rgba(247, 242, 236, 0.82);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        font-size: 14px;
-      }
-
-      .login-panel {
-        padding: 52px 46px 44px;
-        background: var(--panel);
-        border-left: 1px solid rgba(255, 255, 255, 0.48);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-      }
-
-      .login-panel h2 {
+      h1 {
         margin: 0;
         font-size: 40px;
-        line-height: 1.08;
-        letter-spacing: -0.04em;
-      }
-
-      .subcopy {
-        margin: 16px 0 0;
-        color: var(--muted);
-        font-size: 16px;
-        line-height: 1.7;
+        line-height: 1.02;
+        letter-spacing: -0.05em;
       }
 
       form {
-        margin-top: 34px;
+        margin-top: 30px;
       }
 
       .field {
-        margin-bottom: 18px;
+        margin-bottom: 16px;
       }
 
       label {
         display: block;
-        margin-bottom: 9px;
-        color: #55473b;
+        margin-bottom: 8px;
         font-size: 14px;
         font-weight: 600;
+        color: #5d4c3f;
       }
 
       input {
         width: 100%;
-        border: 1px solid rgba(92, 74, 57, 0.14);
-        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid rgba(97, 79, 62, 0.12);
+        background: rgba(255, 255, 255, 0.92);
         border-radius: 18px;
         padding: 15px 16px;
         font-size: 16px;
@@ -156,33 +90,24 @@
       }
 
       input:focus {
-        border-color: rgba(29, 106, 115, 0.38);
+        border-color: rgba(31, 123, 132, 0.34);
         box-shadow: 0 0 0 4px var(--accent-soft);
       }
 
-      .actions {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        margin-top: 28px;
-      }
-
       button {
+        width: 100%;
+        margin-top: 10px;
         appearance: none;
         border: none;
         border-radius: 999px;
-        padding: 14px 22px;
-        font-size: 15px;
+        padding: 15px 18px;
+        background: linear-gradient(135deg, var(--accent), #2b95a0);
+        color: #fff;
+        font-size: 16px;
         font-weight: 700;
         cursor: pointer;
         transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease;
-      }
-
-      button[type="submit"] {
-        min-width: 158px;
-        background: linear-gradient(135deg, var(--accent), #258996);
-        color: #fff;
-        box-shadow: 0 18px 30px rgba(29, 106, 115, 0.22);
+        box-shadow: 0 18px 30px rgba(31, 123, 132, 0.18);
       }
 
       button:hover {
@@ -190,111 +115,52 @@
       }
 
       button:disabled {
-        opacity: 0.6;
-        transform: none;
+        opacity: 0.65;
         cursor: wait;
-      }
-
-      .helper {
-        margin-top: 18px;
-        color: var(--muted);
-        font-size: 14px;
+        transform: none;
       }
 
       .message {
         min-height: 24px;
         margin-top: 16px;
         font-size: 14px;
-        color: #ae4f3d;
+        color: #b24f42;
       }
 
       .message.success {
-        color: #1b6a58;
+        color: #1d6f5b;
       }
 
-      @media (max-width: 920px) {
-        body {
-          padding: 18px;
+      @media (max-width: 640px) {
+        .login-card {
+          padding: 32px 24px 24px;
+          border-radius: 24px;
         }
 
-        .shell {
-          grid-template-columns: 1fr;
-        }
-
-        .brand {
-          min-height: auto;
-          padding: 42px 28px;
-        }
-
-        .login-panel {
-          padding: 34px 28px 32px;
-        }
-
-        .brand h1 {
-          font-size: 52px;
-        }
-
-        .brand-copy {
-          font-size: 21px;
+        h1 {
+          font-size: 34px;
         }
       }
     </style>
   </head>
   <body>
-    <main class="shell">
-      <section class="brand">
-        <div>
-          <div class="eyebrow">Kaiyan Owner Console</div>
-          <h1>凯燕环球中心</h1>
-          <p class="brand-copy">
-            业主资管后台围绕房间收益、固定成本、在管状态与业主信息，统一查看每套房的真实经营情况。
-          </p>
-        </div>
-        <div class="brand-footer">
-          <div class="badge-row">
-            <span class="badge">收益台账</span>
-            <span class="badge">业主联系信息</span>
-            <span class="badge">在管 / 在卖状态</span>
-          </div>
-          <div class="badge-row">
-            <span class="badge">楼层折叠查看</span>
-            <span class="badge">成本手工录入</span>
-            <span class="badge">仅授权账号可访问</span>
-          </div>
-        </div>
-      </section>
+    <main class="login-card">
+      <p class="brand">Kaiyan Host</p>
+      <h1>登录</h1>
 
-      <section class="login-panel">
-        <div class="eyebrow" style="color: #856f59; opacity: 1;">Secure Sign In</div>
-        <h2>登录后台</h2>
-        <p class="subcopy">
-          登录后才可查看房东联系方式、收益成本和房间经营详情。未授权访问会被拦截，不再直接暴露后台数据。
-        </p>
-
-        <form id="login-form">
-          <input id="next" type="hidden" />
-          <div class="field">
-            <label for="username">账号</label>
-            <input id="username" name="username" autocomplete="username" placeholder="请输入后台账号" required />
-          </div>
-          <div class="field">
-            <label for="password">密码</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              placeholder="请输入后台密码"
-              required
-            />
-          </div>
-          <div class="actions">
-            <button id="submit" type="submit">进入后台</button>
-          </div>
-          <div id="message" class="message"></div>
-          <div class="helper">建议使用域名访问，后续可继续升级为 HTTPS 登录。</div>
-        </form>
-      </section>
+      <form id="login-form">
+        <input id="next" type="hidden" />
+        <div class="field">
+          <label for="username">账号</label>
+          <input id="username" name="username" autocomplete="username" required />
+        </div>
+        <div class="field">
+          <label for="password">密码</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <button id="submit" type="submit">进入后台</button>
+        <div id="message" class="message"></div>
+      </form>
     </main>
 
     <script>
@@ -303,6 +169,7 @@
       const messageElement = document.getElementById("message");
       const nextInput = document.getElementById("next");
       const params = new URLSearchParams(window.location.search);
+
       nextInput.value = params.get("next") || "/economics/";
 
       form.addEventListener("submit", async (event) => {
@@ -331,7 +198,7 @@
             throw new Error(body?.message || "登录失败");
           }
 
-          messageElement.textContent = "登录成功，正在进入后台…";
+          messageElement.textContent = "登录成功，正在进入后台...";
           messageElement.className = "message success";
           window.location.href = body.data?.redirect_to || "/economics/";
         } catch (error) {
