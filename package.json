@@ -11,6 +11,7 @@
     "db:init": "tsx scripts/init-db.ts",
     "db:reset": "tsx scripts/init-db.ts --reset",
     "db:backup": "tsx scripts/backup-sqlite.ts",
+    "db:install-linux-backup-cron": "bash scripts/install-linux-backup-cron.sh",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:seed:200": "tsx prisma/seed.ts --rooms 200",
     "admin:user": "tsx scripts/web-admin-user.ts",

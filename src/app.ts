@@ -27,7 +27,10 @@ import {
 } from "./services/web-admin-auth-service.js";
 
 export async function createApp() {
-  const app = Fastify({ logger: false });
+  const app = Fastify({
+    logger: false,
+    trustProxy: true,
+  });
   const webAdminAuth = getWebAdminAuthConfig();
 
   if (hasBootstrapCredential(webAdminAuth)) {
@@ -158,7 +161,10 @@ export async function createApp() {
       userAgent: requestMeta.userAgent,
     });
 
-    reply.header("Set-Cookie", createWebAdminSessionCookie(session.token, webAdminAuth));
+    reply.header(
+      "Set-Cookie",
+      createWebAdminSessionCookie(session.token, webAdminAuth, getRequestScheme(request)),
+    );
     return reply.send({
       code: "OK",
       message: "success",
@@ -191,7 +197,7 @@ export async function createApp() {
       });
     }
 
-    reply.header("Set-Cookie", clearWebAdminSessionCookie(webAdminAuth));
+    reply.header("Set-Cookie", clearWebAdminSessionCookie(webAdminAuth, getRequestScheme(request)));
     return reply.send({
       code: "OK",
       message: "success",
@@ -247,4 +253,13 @@ function getClientIpAddress(request: FastifyRequest) {
   }
 
   return request.ip ?? null;
+}
+
+function getRequestScheme(request: FastifyRequest) {
+  const forwardedProto = request.headers["x-forwarded-proto"];
+  if (typeof forwardedProto === "string" && forwardedProto.trim()) {
+    return forwardedProto.split(",")[0]?.trim().toLowerCase() ?? "http";
+  }
+
+  return request.protocol?.toLowerCase() ?? "http";
 }

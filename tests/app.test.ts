@@ -327,6 +327,40 @@ describe("hotel apartment api", () => {
     delete process.env.WEB_ADMIN_USERNAME;
     delete process.env.WEB_ADMIN_PASSWORD;
     delete process.env.WEB_ADMIN_DISPLAY_NAME;
+    delete process.env.WEB_ADMIN_COOKIE_SECURE;
+
+    await app.close();
+  });
+
+  it("adds the Secure flag to admin cookies when the request is forwarded as HTTPS", async () => {
+    process.env.WEB_ADMIN_USERNAME = "kaiyan-admin";
+    process.env.WEB_ADMIN_PASSWORD = "19491001Zsf@@";
+    process.env.WEB_ADMIN_DISPLAY_NAME = "凯燕管理员";
+    process.env.WEB_ADMIN_COOKIE_SECURE = "auto";
+
+    const app = await createApp();
+
+    const loginResponse = await app.inject({
+      method: "POST",
+      url: "/api/v1/web-admin/session",
+      headers: {
+        "x-forwarded-proto": "https",
+      },
+      payload: {
+        username: "kaiyan-admin",
+        password: "19491001Zsf@@",
+        next: "/economics/",
+      },
+    });
+
+    expect(loginResponse.statusCode).toBe(200);
+    const sessionCookie = loginResponse.headers["set-cookie"];
+    expect(sessionCookie).toContain("Secure");
+
+    delete process.env.WEB_ADMIN_USERNAME;
+    delete process.env.WEB_ADMIN_PASSWORD;
+    delete process.env.WEB_ADMIN_DISPLAY_NAME;
+    delete process.env.WEB_ADMIN_COOKIE_SECURE;
 
     await app.close();
   });

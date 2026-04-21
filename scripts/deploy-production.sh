@@ -48,7 +48,12 @@ trap 'rollback $?' EXIT
 
 if [ -f prisma/dev.db ]; then
   mkdir -p "$BACKUP_DIR_RELATIVE"
-  cp "prisma/dev.db" "$BACKUP_DIR_RELATIVE/dev-predeploy-$(date +%Y%m%d-%H%M%S).db"
+  if npm run db:backup -- --label predeploy; then
+    echo "SQLite predeploy backup completed"
+  else
+    echo "SQLite backup script failed, using raw file copy fallback"
+    cp "prisma/dev.db" "$BACKUP_DIR_RELATIVE/dev-predeploy-$(date +%Y%m%d-%H%M%S).db"
+  fi
 fi
 
 git fetch origin "$DEPLOY_BRANCH"
