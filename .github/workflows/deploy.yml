@@ -47,13 +47,8 @@ jobs:
 
           git fetch origin main
           git reset --hard origin/main
-
-          npm ci
-          npm run prisma:generate
-          npm run build
-
-          pm2 restart kaiyan --update-env || pm2 start npm --name kaiyan -- start
-          pm2 save
+          chmod +x scripts/deploy-production.sh
+          APP_DIR=/srv/kaiyan-managament DEPLOY_BRANCH=main ./scripts/deploy-production.sh
 
           sudo systemctl reload nginx
           EOF

@@ -1,100 +1,47 @@
-import crypto from "node:crypto";
-
 const SESSION_COOKIE_NAME = "kaiyan_admin_session";
 const DEFAULT_SESSION_DAYS = 14;
 
 export type WebAdminAuthConfig = {
-  enabled: boolean;
-  username: string;
-  password: string;
-  secret: string;
+  bootstrapUsername: string;
+  bootstrapPassword: string;
+  bootstrapDisplayName: string;
   sessionMaxAgeSeconds: number;
-};
-
-type SessionPayload = {
-  username: string;
-  exp: number;
+  cookieSecure: boolean;
 };
 
 export function getWebAdminAuthConfig(): WebAdminAuthConfig {
-  const username = process.env.WEB_ADMIN_USERNAME?.trim() ?? "";
-  const password = process.env.WEB_ADMIN_PASSWORD?.trim() ?? "";
-  const secret = process.env.WEB_ADMIN_SESSION_SECRET?.trim() ?? "";
   const days = Number(process.env.WEB_ADMIN_SESSION_DAYS ?? DEFAULT_SESSION_DAYS);
   const normalizedDays = Number.isFinite(days) && days > 0 ? days : DEFAULT_SESSION_DAYS;
+  const cookieSecure = process.env.WEB_ADMIN_COOKIE_SECURE === "true";
 
   return {
-    enabled: Boolean(username && password && secret),
-    username,
-    password,
-    secret,
+    bootstrapUsername: process.env.WEB_ADMIN_USERNAME?.trim() ?? "",
+    bootstrapPassword: process.env.WEB_ADMIN_PASSWORD?.trim() ?? "",
+    bootstrapDisplayName: process.env.WEB_ADMIN_DISPLAY_NAME?.trim() || "凯燕管理员",
     sessionMaxAgeSeconds: Math.round(normalizedDays * 24 * 60 * 60),
+    cookieSecure,
   };
 }
 
-export function isValidWebAdminCredential(
-  username: string,
-  password: string,
-  config: WebAdminAuthConfig,
-) {
-  if (!config.enabled) {
-    return false;
-  }
-
-  return secureEquals(username, config.username) && secureEquals(password, config.password);
+export function hasBootstrapCredential(config: WebAdminAuthConfig) {
+  return Boolean(config.bootstrapUsername && config.bootstrapPassword);
 }
 
-export function createWebAdminSessionCookie(config: WebAdminAuthConfig) {
-  const payload = {
-    username: config.username,
-    exp: Math.floor(Date.now() / 1000) + config.sessionMaxAgeSeconds,
-  } satisfies SessionPayload;
-  const body = toBase64Url(JSON.stringify(payload));
-  const signature = signValue(body, config.secret);
-  const token = `${body}.${signature}`;
-
-  return buildCookie(token, config.sessionMaxAgeSeconds);
+export function createWebAdminSessionCookie(token: string, config: WebAdminAuthConfig) {
+  return buildCookie(token, config.sessionMaxAgeSeconds, config.cookieSecure);
 }
 
-export function clearWebAdminSessionCookie() {
-  return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+export function clearWebAdminSessionCookie(config?: Pick<WebAdminAuthConfig, "cookieSecure">) {
+  return buildCookie("", 0, config?.cookieSecure ?? false);
 }
 
-export function readWebAdminSession(cookieHeader: string | undefined, config: WebAdminAuthConfig) {
-  if (!config.enabled || !cookieHeader) {
+export function readWebAdminSessionToken(cookieHeader: string | undefined) {
+  if (!cookieHeader) {
     return null;
   }
 
   const cookies = parseCookieHeader(cookieHeader);
-  const token = cookies[SESSION_COOKIE_NAME];
-  if (!token) {
-    return null;
-  }
-
-  const [body, signature] = token.split(".");
-  if (!body || !signature) {
-    return null;
-  }
-
-  const expectedSignature = signValue(body, config.secret);
-  if (!secureEquals(signature, expectedSignature)) {
-    return null;
-  }
-
-  try {
-    const payload = JSON.parse(fromBase64Url(body)) as SessionPayload;
-    if (payload.username !== config.username) {
-      return null;
-    }
-
-    if (payload.exp <= Math.floor(Date.now() / 1000)) {
-      return null;
-    }
-
-    return payload;
-  } catch {
-    return null;
-  }
+  return cookies[SESSION_COOKIE_NAME] ?? null;
 }
 
 export function isPublicWebPath(pathname: string) {
@@ -117,22 +64,9 @@ export function normalizeNextPath(nextPath: string | undefined) {
   return nextPath;
 }
 
-function buildCookie(value: string, maxAgeSeconds: number) {
-  return `${SESSION_COOKIE_NAME}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
-}
-
-function signValue(value: string, secret: string) {
-  return crypto.createHmac("sha256", secret).update(value).digest("base64url");
-}
-
-function secureEquals(left: string, right: string) {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  if (leftBuffer.length !== rightBuffer.length) {
-    return false;
-  }
-
-  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+function buildCookie(value: string, maxAgeSeconds: number, secure: boolean) {
+  const securePart = secure ? "; Secure" : "";
+  return `${SESSION_COOKIE_NAME}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${securePart}`;
 }
 
 function parseCookieHeader(cookieHeader: string) {
@@ -149,12 +83,4 @@ function parseCookieHeader(cookieHeader: string) {
       accumulator[name] = rest.join("=");
       return accumulator;
     }, {});
-}
-
-function toBase64Url(value: string) {
-  return Buffer.from(value, "utf8").toString("base64url");
-}
-
-function fromBase64Url(value: string) {
-  return Buffer.from(value, "base64url").toString("utf8");
 }

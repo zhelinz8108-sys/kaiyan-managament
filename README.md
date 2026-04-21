@@ -1,16 +1,15 @@
-# 酒店公寓资管平台 - Phase 1 启动版
+# 凯燕环球中心后台
 
-这是基于 [hotel_apartment_dev_spec_cn.md](./hotel_apartment_dev_spec_cn.md) 启动实施的第一版 Web API 后端，当前优先覆盖：
+这是一个面向酒店式公寓内部运营的后台系统，当前重点覆盖：
 
-- 房态与房间详情查询
-- 临时锁库
-- 短租订单创建
-- 入住 / 离店
-- 账单收款
-- iOS 前台 App 会话、设备注册、前台看板、增量同步
-- 房间收益成本分析看板
+- 房间收益 / 成本分析
+- 在管 / 在卖房源池管理
+- 业主姓名与联系方式查看
+- 房间成本录入
+- 房源状态切换与历史归档
+- Web 后台登录保护
 
-## 技术选型
+## 技术栈
 
 - Node.js 24
 - TypeScript
@@ -19,86 +18,130 @@
 - SQLite
 - Vitest
 
-## 快速开始
+## 本地启动
 
 ```bash
 npm install
-npx prisma generate
+npm run prisma:generate
 npm run db:reset
-npm run prisma:seed:200
+npm run prisma:seed
 npm run dev
 ```
 
-服务默认启动在 `http://127.0.0.1:3000`。
+默认访问：
 
-## 默认数据
+- `http://127.0.0.1:3000/`
+- `http://127.0.0.1:3000/economics/`
 
-执行 `npm run prisma:seed:200` 后会生成：
-
-- 一个示例项目
-- 200 个房间
-- 一批示例住客
-- 1 个前台账号
-- 当日预抵、预离、在住订单样本
-- 200 套房间固定成本档案
-- 2026 年按月收益样本，覆盖日租 / 短租 / 长租 / 季节性 / 亏损房混合经营
-
-也可以按需指定数量：
+## 常用命令
 
 ```bash
-tsx prisma/seed.ts --rooms 80
-tsx prisma/seed.ts --rooms 200 --year 2026
+npm run build
+npm test
+npm run db:init
+npm run db:backup
+npm run prisma:seed
+npm run admin:user -- --username kaiyan-admin --password your-password --display-name "凯燕管理员"
 ```
 
-默认演示账号：
+说明：
 
-- 用户名：`frontdesk`
-- 密码：`frontdesk123`
+- `db:init`：初始化数据库，或在现有数据库上自动补应用尚未执行的新 migration
+- `db:backup`：备份 SQLite 数据库到 `prisma/backups`
+- `admin:user`：创建或重置后台登录账号
 
-## 页面入口
+## 后台账号
 
-- 后台首页：`http://127.0.0.1:3000/`
-- 业主资管后台：`http://127.0.0.1:3000/economics/`
-- 后台别名：`http://127.0.0.1:3000/admin/`、`http://127.0.0.1:3000/backend/`
+当前 Web 登录基于数据库用户，不再只依赖单一环境变量账号。
 
-房间盈亏看板会把每间房的：
+默认会读取以下环境变量作为“首个管理员引导账号”：
 
-- 年度总收益
-- 年度固定成本
-- 毛利 / 毛亏
-- 日租 / 短租 / 长租收益拆分
-- 12 个月经营模式切换
+```env
+WEB_ADMIN_USERNAME=
+WEB_ADMIN_PASSWORD=
+WEB_ADMIN_DISPLAY_NAME=
+WEB_ADMIN_SESSION_DAYS=14
+WEB_ADMIN_COOKIE_SECURE=false
+```
 
-放到同一页，方便看出一套房到底是赚钱还是亏钱。
+如果数据库里还没有管理员账号，启动应用时会自动创建这一位管理员。
 
-## 已实现接口
+## 数据库与迁移
 
-- `GET /health`
-- `GET /api/v1/rooms/:id`
-- `POST /api/v1/inventory/locks`
-- `POST /api/v1/bookings`
-- `POST /api/v1/bookings/:id/check-in`
-- `POST /api/v1/checkouts`
-- `POST /api/v1/folios/:id/payments`
-- `POST /api/v1/frontdesk/app-sessions`
-- `POST /api/v1/frontdesk/devices/register`
-- `GET /api/v1/frontdesk/dashboard`
-- `GET /api/v1/frontdesk/arrivals`
-- `GET /api/v1/frontdesk/departures`
-- `GET /api/v1/frontdesk/room-board`
-- `GET /api/v1/frontdesk/bookings/:id`
-- `GET /api/v1/frontdesk/sync`
-- `GET /api/v1/asset/room-economics`
+当前数据库仍为 SQLite：
 
-## 当前实现边界
+```env
+DATABASE_URL="file:./dev.db"
+```
 
-这还是 Phase 1 启动版，不是完整成品。当前明确未覆盖：
+数据库文件默认位于：
 
-- 长租租约、续租、退租、押金转结
-- 退款、业主结算、ERP 对接
-- 门锁 / 公安 / OTA 真正外部集成
-- 完整 RBAC、审批流、操作审计落库
-- 多角色后台权限、审批流和移动端成品界面
+- `prisma/dev.db`
+
+项目使用自维护 migration 目录：
+
+- `prisma/migrations`
+
+`scripts/init-db.ts` 现在支持两种场景：
+
+- 新建数据库并执行全部 migration
+- 对已有数据库自动补执行尚未应用的新 migration
+
+## 操作审计
+
+当前会记录以下后台审计事件：
+
+- 管理员登录成功
+- 管理员登录失败
+- 管理员退出登录
+- 房间成本录入 / 更新
+- 房源在管状态变更
+
+可通过接口查看最近审计：
+
+- `GET /api/v1/web-admin/audit-logs?limit=50`
+
+## 自动发布
+
+已接入 GitHub Actions 自动发布到腾讯云轻量应用服务器。
+
+触发方式：
+
+- push 到 `main`
+- 手动执行 workflow
+
+自动发布会执行：
+
+1. 拉取最新 `main`
+2. 备份线上 SQLite 数据库
+3. 执行 `npm ci`
+4. 执行 `npm run db:init`
+5. 执行 `npm run prisma:generate`
+6. 执行 `npm run build`
+7. 重启 PM2
+8. 进行健康检查
+9. 失败时回滚到上一版本
+
+工作流文件：
+
+- [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml)
+
+服务器部署脚本：
+
+- [`scripts/deploy-production.sh`](./scripts/deploy-production.sh)
+
+## 线上环境
+
+当前线上域名：
+
+- `http://kaiyan.host/`
+
+正式启用前建议继续补齐：
+
+- HTTPS
+- 自动定时数据库备份
+- 更细的后台角色权限
+- 备份恢复演练
 
 ## 测试
 
@@ -106,9 +149,13 @@ tsx prisma/seed.ts --rooms 200 --year 2026
 npm test
 ```
 
-当前已覆盖四条关键验证：
+当前已覆盖的关键测试包括：
 
 - 重复占用冲突
-- 前台增量同步返回新订单
-- 房间收益成本接口返回单房毛利计算结果
-- 房间收益成本接口可聚合 200 套房
+- 前台同步
+- 房间收益 / 成本聚合
+- 登录保护
+- 活跃在管房源范围
+- 整栋底表范围
+- 200 房压力样本
+- 成本录入

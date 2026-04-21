@@ -186,6 +186,34 @@ model Operator {
   sessions     AppSession[]
 }
 
+model WebAdminUser {
+  id           String            @id @default(cuid())
+  username     String            @unique
+  passwordHash String
+  displayName  String
+  isActive     Boolean           @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  sessions     WebAdminSession[]
+  auditLogs    AdminAuditLog[]   @relation("AdminAuditActor")
+}
+
+model WebAdminSession {
+  id         String       @id @default(cuid())
+  userId     String
+  tokenHash  String       @unique
+  expiresAt  DateTime
+  lastSeenAt DateTime?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  user       WebAdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
 model AppSession {
   id           String       @id @default(cuid())
   operatorId   String
@@ -335,6 +363,24 @@ model RoomStatusEvent {
   operator       String
   occurredAt     DateTime     @default(now())
   room           Room         @relation(fields: [roomId], references: [id])
+}
+
+model AdminAuditLog {
+  id            String        @id @default(cuid())
+  actorUserId   String?
+  actorUsername String?
+  action        String
+  targetType    String
+  targetId      String?
+  requestId     String?
+  ipAddress     String?
+  userAgent     String?
+  metadataJson  String?
+  createdAt     DateTime      @default(now())
+  actorUser     WebAdminUser? @relation("AdminAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+  @@index([targetType, targetId, createdAt])
 }
 
 model RoomCostProfile {

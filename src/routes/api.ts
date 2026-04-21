@@ -1,5 +1,5 @@
 import { ManagementStatus, PaymentMethod, SourceSystem } from "@prisma/client";
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { prisma } from "../lib/db.js";
@@ -26,6 +26,7 @@ import { createInventoryLock } from "../services/inventory-service.js";
 import { getRoomEconomicsOverview } from "../services/economics-service.js";
 import { upsertRoomCostProfile } from "../services/room-cost-service.js";
 import { upsertRoomManagementAssignment } from "../services/room-management-service.js";
+import { getRecentAdminAuditLogs, recordAdminAuditLog } from "../services/admin-audit-service.js";
 
 const sourceSystemEnum = z.nativeEnum(SourceSystem);
 const paymentMethodEnum = z.nativeEnum(PaymentMethod);
@@ -67,6 +68,23 @@ export async function registerApiRoutes(app: FastifyInstance) {
     };
   });
 
+  app.get("/api/v1/web-admin/audit-logs", async (request) => {
+    const query = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+      })
+      .parse(request.query);
+
+    return {
+      code: "OK",
+      message: "success",
+      trace_id: buildTraceId(),
+      data: {
+        items: await getRecentAdminAuditLogs(query.limit),
+      },
+    };
+  });
+
   app.put("/api/v1/rooms/:id/cost-profile", async (request) => {
     const params = z.object({ id: z.string().min(1) }).parse(request.params);
     const body = z
@@ -91,6 +109,30 @@ export async function registerApiRoutes(app: FastifyInstance) {
       monthlyOtherCost: body.monthly_other_cost,
       notes: body.notes,
     });
+
+    if (request.webAdminUser) {
+      await recordAdminAuditLog({
+        actor: {
+          userId: request.webAdminUser.userId,
+          username: request.webAdminUser.username,
+        },
+        action: "ROOM_COST_PROFILE_UPSERTED",
+        targetType: "ROOM",
+        targetId: params.id,
+        requestId: buildTraceId(),
+        ipAddress: getClientIpAddress(request),
+        userAgent: getUserAgent(request),
+        metadata: {
+          monthlyRentCost: body.monthly_rent_cost,
+          monthlyPropertyFeeCost: body.monthly_property_fee_cost,
+          monthlyCleaningCost: body.monthly_cleaning_cost,
+          monthlyMaintenanceCost: body.monthly_maintenance_cost,
+          monthlyUtilityCost: body.monthly_utility_cost,
+          monthlyOtherCost: body.monthly_other_cost,
+          notes: body.notes ?? null,
+        },
+      });
+    }
 
     return {
       code: "OK",
@@ -124,6 +166,30 @@ export async function registerApiRoutes(app: FastifyInstance) {
       acquireMode: body.acquire_mode,
       notes: body.notes,
     });
+
+    if (request.webAdminUser) {
+      await recordAdminAuditLog({
+        actor: {
+          userId: request.webAdminUser.userId,
+          username: request.webAdminUser.username,
+        },
+        action: "ROOM_MANAGEMENT_ASSIGNMENT_CREATED",
+        targetType: "ROOM",
+        targetId: params.id,
+        requestId: buildTraceId(),
+        ipAddress: getClientIpAddress(request),
+        userAgent: getUserAgent(request),
+        metadata: {
+          managementStatus: body.management_status,
+          effectiveFrom: body.effective_from.toISOString(),
+          effectiveTo: body.effective_to?.toISOString() ?? null,
+          ownerName: body.owner_name ?? null,
+          ownerPhone: body.owner_phone ?? null,
+          acquireMode: body.acquire_mode ?? null,
+          notes: body.notes ?? null,
+        },
+      });
+    }
 
     return {
       code: "OK",
@@ -534,4 +600,24 @@ export async function registerApiRoutes(app: FastifyInstance) {
       ),
     };
   });
+}
+
+function getClientIpAddress(request: FastifyRequest) {
+  const forwardedFor = request.headers["x-forwarded-for"];
+  if (typeof forwardedFor === "string" && forwardedFor.trim()) {
+    return forwardedFor.split(",")[0]?.trim() ?? null;
+  }
+
+  const realIp = request.headers["x-real-ip"];
+  if (typeof realIp === "string" && realIp.trim()) {
+    return realIp.trim();
+  }
+
+  return request.ip ?? null;
+}
+
+function getUserAgent(request: FastifyRequest) {
+  return typeof request.headers["user-agent"] === "string"
+    ? request.headers["user-agent"]
+    : null;
 }

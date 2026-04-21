@@ -33,6 +33,9 @@ describe("hotel apartment api", () => {
   });
 
   beforeEach(async () => {
+    await prisma.adminAuditLog.deleteMany();
+    await prisma.webAdminSession.deleteMany();
+    await prisma.webAdminUser.deleteMany();
     await prisma.payment.deleteMany();
     await prisma.folio.deleteMany();
     await prisma.checkInRecord.deleteMany();
@@ -254,7 +257,7 @@ describe("hotel apartment api", () => {
   it("serves a custom login page and authorizes access with a web admin session", async () => {
     process.env.WEB_ADMIN_USERNAME = "kaiyan-admin";
     process.env.WEB_ADMIN_PASSWORD = "19491001Zsf@@";
-    process.env.WEB_ADMIN_SESSION_SECRET = "test-session-secret";
+    process.env.WEB_ADMIN_DISPLAY_NAME = "Kaiyan Admin";
 
     const app = await createApp();
 
@@ -272,7 +275,7 @@ describe("hotel apartment api", () => {
     });
 
     expect(loginPage.statusCode).toBe(200);
-    expect(loginPage.body).toContain("登录后台");
+    expect(loginPage.body).toContain("login-form");
 
     const loginResponse = await app.inject({
       method: "POST",
@@ -297,11 +300,33 @@ describe("hotel apartment api", () => {
     });
 
     expect(authorizedPage.statusCode).toBe(200);
-    expect(authorizedPage.body).toContain("退出登录");
+    expect(authorizedPage.body).toContain("logoutButton");
+
+    const profileResponse = await app.inject({
+      method: "GET",
+      url: "/api/v1/web-admin/profile",
+      headers: {
+        cookie: Array.isArray(sessionCookie) ? sessionCookie[0] : String(sessionCookie),
+      },
+    });
+
+    expect(profileResponse.statusCode).toBe(200);
+    expect(profileResponse.json().data.user.username).toBe("kaiyan-admin");
+
+    const auditResponse = await app.inject({
+      method: "GET",
+      url: "/api/v1/web-admin/audit-logs?limit=10",
+      headers: {
+        cookie: Array.isArray(sessionCookie) ? sessionCookie[0] : String(sessionCookie),
+      },
+    });
+
+    expect(auditResponse.statusCode).toBe(200);
+    expect(auditResponse.json().data.items[0].action).toBe("WEB_ADMIN_LOGIN_SUCCEEDED");
 
     delete process.env.WEB_ADMIN_USERNAME;
     delete process.env.WEB_ADMIN_PASSWORD;
-    delete process.env.WEB_ADMIN_SESSION_SECRET;
+    delete process.env.WEB_ADMIN_DISPLAY_NAME;
 
     await app.close();
   });
