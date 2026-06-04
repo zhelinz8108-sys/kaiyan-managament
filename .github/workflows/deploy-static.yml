@@ -1,0 +1,61 @@
+name: Deploy Static Assets
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "public/**"
+      - ".github/workflows/deploy-static.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: kaiyan-static-production
+  cancel-in-progress: true
+
+jobs:
+  deploy-static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Load deploy SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust Tencent server
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 124.223.31.175 >> ~/.ssh/known_hosts
+
+      - name: Pull latest static assets on Tencent Cloud
+        run: |
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 ubuntu@124.223.31.175 'bash -s' <<'EOF'
+          set -euo pipefail
+
+          cd /srv/kaiyan-managament
+          echo "Current commit: $(git rev-parse --short HEAD)"
+          git fetch origin main
+          git reset --hard origin/main
+          echo "Updated commit: $(git rev-parse --short HEAD)"
+
+          sudo systemctl reload nginx
+          EOF
+
+      - name: Verify ICP footer is live
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if curl -fsSL "https://kaiyan.host/login/?next=%2F&staticCheck=${attempt}" | grep -q "苏ICP备2026024446号"; then
+              echo "ICP footer is live"
+              exit 0
+            fi
+
+            echo "ICP footer not visible yet, retrying..."
+            sleep 5
+          done
+
+          echo "ICP footer was not found on the live login page"
+          exit 1
