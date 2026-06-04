@@ -26,14 +26,9 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-      - name: Trust Tencent server
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H 124.223.31.175 >> ~/.ssh/known_hosts
-
       - name: Pull latest static assets on Tencent Cloud
         run: |
-          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 ubuntu@124.223.31.175 'bash -s' <<'EOF'
+          ssh -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ServerAliveCountMax=3 ubuntu@124.223.31.175 'bash -s' <<'EOF'
           set -euo pipefail
 
           cd /srv/kaiyan-managament
