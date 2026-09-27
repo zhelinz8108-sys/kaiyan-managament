@@ -6,10 +6,14 @@ prisma/dev.db
 prisma/dev.db-journal
 prisma/test.db
 prisma/test.db-journal
+prisma/backups/
+prisma/import-test.db*
 coverage
 .codex-*.png
 .codex-*.log
 .codex-dev.log
 .codex-dev.err.log
+.codex-private/
+.codex-xls-deps/
 kaiyan-deploy.tgz
 *.tgz

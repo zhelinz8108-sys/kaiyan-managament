@@ -1,0 +1,27 @@
+name: Import Managed Rooms
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: kaiyan-production
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Load deploy SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Import private managed-room snapshot
+        env:
+          SNAPSHOT_B64: ${{ secrets.MANAGED_ROOMS_SNAPSHOT_20260927 }}
+        run: |
+          set -euo pipefail
+          test -n "$SNAPSHOT_B64"
+          printf '%s' "$SNAPSHOT_B64" | base64 --decode | ssh -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ServerAliveCountMax=3 ubuntu@124.223.31.175 'cd /srv/kaiyan-managament && bash scripts/import-managed-rooms-remote.sh 42'
